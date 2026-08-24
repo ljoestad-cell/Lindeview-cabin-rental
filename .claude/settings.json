@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkill -f \"next dev.*3001\")",
+      "Bash(lsof -ti:3001)",
+      "Bash(xargs -r kill)",
+      "Bash(chromium-cli --help)",
+      "Bash(mkdir -p /private/tmp/claude-501/-Users-morten-ljostad-Github-Lindeview-cabin-rental/2cc81b0c-93af-47f7-8240-06f04610104b/scratchpad/shots)",
+      "Bash(npm init *)",
+      "Bash(npx playwright *)"
+    ]
+  }
+}
