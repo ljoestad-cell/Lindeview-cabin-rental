@@ -15,10 +15,10 @@ export default function BookingCta() {
           Book ditt opphold
         </p>
         <h2 className="mt-4 font-display text-4xl leading-tight text-white sm:text-5xl">
-          Klar for noen dager i villmarka?
+          Klar for noen rolige dager på fjellet?
         </h2>
         <p className="mt-6 text-lg leading-relaxed text-white/80">
-          Fra kr 3 200 per natt · Fiskekort inkludert · Minimum 2 netter.
+          Fra kr 3 200 per natt · Fiskekort inkludert · Minimum netter.
           Priskalender og direktebooking kommer snart — frem til da tar vi
           gjerne imot henvendelsen din direkte.
         </p>
