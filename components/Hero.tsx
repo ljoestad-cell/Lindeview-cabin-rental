@@ -2,8 +2,8 @@ import Image from "next/image";
 import { BedDouble, Bath, Users, Fish } from "lucide-react";
 
 const stats = [
-  { icon: Users, label: "6 gjester" },
-  { icon: BedDouble, label: "3 soverom" },
+  { icon: Users, label: "10 gjester" },
+  { icon: BedDouble, label: "4 soverom" },
   { icon: Bath, label: "2 bad" },
   { icon: Fish, label: "Fiskekort inkludert" },
 ];
@@ -23,7 +23,7 @@ export default function Hero() {
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-16 pt-40 sm:px-10 sm:pb-20">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-accent">
-          Hillestadheia · Eksklusiv villmarkshytte
+          Hillestadheia · Eksklusiv fjellhytte
         </p>
         <h1 className="mt-4 max-w-2xl font-display text-5xl leading-[1.05] text-white sm:text-6xl lg:text-7xl">
           Lindeview
