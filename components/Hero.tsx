@@ -1,11 +1,12 @@
 import Image from "next/image";
-import { BedDouble, Bath, Users, Fish } from "lucide-react";
+import { BedDouble, Bath, Users, Fish, EvCharger } from "lucide-react";
 
 const stats = [
   { icon: Users, label: "10 gjester" },
   { icon: BedDouble, label: "4 soverom" },
   { icon: Bath, label: "2 bad" },
   { icon: Fish, label: "Fiskekort inkludert" },
+  { icon: EvCharger, label: "El-bil lader" },
 ];
 
 export default function Hero() {
@@ -49,7 +50,7 @@ export default function Hero() {
           </a>
         </div>
 
-        <dl className="mt-14 grid max-w-xl grid-cols-2 gap-x-8 gap-y-5 border-t border-white/20 pt-8 sm:grid-cols-4">
+        <dl className="mt-14 grid max-w-2xl grid-cols-2 gap-x-8 gap-y-5 border-t border-white/20 pt-8 sm:grid-cols-5">
           {stats.map(({ icon: Icon, label }) => (
             <div key={label} className="flex items-center gap-2.5 text-white">
               <Icon className="h-5 w-5 shrink-0 text-accent" strokeWidth={1.75} />
