@@ -12,7 +12,7 @@ const features = [
   {
     icon: ChefHat,
     title: "Stort gourmetkjøkken",
-    text: "Kokeøy, induksjon og alt du trenger for å lage middag på høyt nivå.",
+    text: "Kokeøy, induksjon, gassgrill og alt du trenger for å lage middag på høyt nivå.",
   },
   {
     icon: Flame,
@@ -27,7 +27,7 @@ const features = [
   {
     icon: Wind,
     title: "Stille og skjermet",
-    text: "Ingen naboer tett på, og ingen trafikkstøy å forholde deg til.",
+    text: "Fredlig område rett ved friområde og ingen trafikkstøy.",
   },
   {
     icon: Wifi,
