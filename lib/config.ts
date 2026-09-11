@@ -15,3 +15,6 @@ export const SEASON_START = "2027-05-01";
 export const SEASON_END = "2027-10-01";
 
 export const SEASON_LABEL = "1. mai – 30. september 2027";
+
+/** Eieren mottar e-postvarsel om nye bookingforespørsler på denne adressen. */
+export const OWNER_EMAIL = "ljoestad@gmail.com";

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import * as calendar from "@/lib/calendar";
 import { MAX_GUESTS, MIN_NIGHTS, SEASON_END, SEASON_START } from "@/lib/config";
 import { isIsoDate, isWithinSeason, nightsBetween, rangesOverlap } from "@/lib/dates";
+import { notifyOwnerOfBooking } from "@/lib/notifications";
 import { quote } from "@/lib/pricing";
 import { getStore } from "@/lib/store";
 import type { Booking, BookingRequestInput, BookingStatus } from "@/lib/types";
@@ -66,12 +67,18 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
 
   await store.createBooking(booking);
 
-  // Kalendersynk er "best effort" – skal aldri velte selve forespørselen.
+  // Kalendersynk og e-postvarsel er "best effort" – skal aldri velte selve forespørselen.
   try {
     const eventId = await calendar.upsertEvent(booking);
     if (eventId) await store.updateBooking(booking.id, { calendarEventId: eventId });
   } catch (err) {
     console.error("[bookings] Kunne ikke opprette kalenderhendelse:", err);
+  }
+
+  try {
+    await notifyOwnerOfBooking(booking);
+  } catch (err) {
+    console.error("[bookings] Kunne ikke sende e-postvarsel:", err);
   }
 
   return booking;

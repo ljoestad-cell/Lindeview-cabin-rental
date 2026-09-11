@@ -45,6 +45,22 @@ produksjon:
 - `ADMIN_SESSION_SECRET` — en lang, tilfeldig streng (f.eks.
   `openssl rand -hex 32`), brukes til å signere innloggingscookien.
 
+### E-postvarsel om nye forespørsler
+
+Eieren varsles på **ljoestad@gmail.com** (satt i [lib/config.ts](lib/config.ts) som
+`OWNER_EMAIL`) hver gang noen sender en bookingforespørsel. Uten oppsett skjer
+ingenting (forespørselen lagres og vises i `/admin` uansett) — for å faktisk
+sende e-post:
+
+1. Opprett en konto på [resend.com](https://resend.com) — bruk **ljoestad@gmail.com**
+   som kontoens e-post. Da kan du sende uten å verifisere et eget domene
+   (Resend sin gratis sandkasse tillater sending til kontoens egen adresse).
+2. Lag en API-nøkkel (**API Keys** → **Create API Key**).
+3. Sett i miljøvariablene: `RESEND_API_KEY`.
+4. (Valgfritt, krever verifisert domene) `RESEND_FROM_EMAIL` for å sende fra
+   f.eks. `Lindeview <post@lindeview.no>` i stedet for standard
+   `onboarding@resend.dev`.
+
 ### Lagring av bookinger
 
 Uten videre oppsett brukes en lokal fil (`.data/bookings.json`) — fin til
