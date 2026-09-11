@@ -1,10 +1,11 @@
 import { OWNER_EMAIL } from "@/lib/config";
-import { formatNok } from "@/lib/pricing";
 import type { Booking } from "@/lib/types";
 
 /**
- * Sender e-postvarsel til eieren når en ny bookingforespørsel kommer inn.
- * Bruker Resend sitt REST-API (ingen SDK-avhengighet nødvendig).
+ * Sender et kort varsel til eieren når en ny bookingforespørsel kommer inn –
+ * bare navn, datoer og en henvisning til /admin, ikke alle detaljene (de
+ * finnes uansett i admin-panelet). Bruker Resend sitt REST-API (ingen
+ * SDK-avhengighet nødvendig).
  *
  * Uten RESEND_API_KEY gjør funksjonen ingenting (logger og returnerer) –
  * bookingen lagres og vises i /admin uansett, akkurat som med kalender og
@@ -24,24 +25,12 @@ function warnNotConfigured() {
 }
 
 function buildEmailBody(booking: Booking): string {
-  const lines = [
-    `${booking.name} har sendt en bookingforespørsel for Lindeview.`,
-    "",
-    `Innsjekk:  ${booking.checkIn}`,
-    `Utsjekk:   ${booking.checkOut}`,
-    `Netter:    ${booking.nights}`,
-    `Gjester:   ${booking.guests}`,
-    `Totalt:    ${formatNok(booking.pricing.total)}`,
-    "",
-    `Navn:      ${booking.name}`,
-    `E-post:    ${booking.email}`,
-    `Telefon:   ${booking.phone}`,
-  ];
-  if (booking.message) {
-    lines.push("", "Melding:", booking.message);
-  }
-  lines.push("", "Logg inn på /admin på nettsiden for å bekrefte eller avslå.");
-  return lines.join("\n");
+  return [
+    `Du har fått en ny bookingforespørsel på Lindeview.`,
+    `${booking.name}, ${booking.checkIn} – ${booking.checkOut} (${booking.nights} netter).`,
+    ``,
+    `Logg inn på /admin for å se detaljene og svare.`,
+  ].join("\n");
 }
 
 /** Best-effort – kaster videre ved feil, kalleren fanger og logger. */
