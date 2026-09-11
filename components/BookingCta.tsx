@@ -1,4 +1,7 @@
 import Image from "next/image";
+import Link from "next/link";
+import { CLEANING_FEE, MIN_NIGHTS, NIGHTLY_RATE, SEASON_LABEL } from "@/lib/config";
+import { formatNok } from "@/lib/pricing";
 
 export default function BookingCta() {
   return (
@@ -18,18 +21,18 @@ export default function BookingCta() {
           Klar for noen rolige dager på fjellet?
         </h2>
         <p className="mt-6 text-lg leading-relaxed text-white/80">
-          Fra kr 3 200 per natt · Fiskekort inkludert · Minimum netter.
-          Priskalender og direktebooking kommer snart — frem til da tar vi
-          gjerne imot henvendelsen din direkte.
+          {formatNok(NIGHTLY_RATE)} per natt · Fiskekort inkludert · Minimum{" "}
+          {MIN_NIGHTS} netter · Rengjøringsgebyr {formatNok(CLEANING_FEE)}.
+          Kalenderen er åpen for {SEASON_LABEL}.
         </p>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          <a
-            href="mailto:post@lindeview.no"
+          <Link
+            href="/book"
             className="rounded-full bg-accent px-8 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
           >
             Send booking-forespørsel
-          </a>
+          </Link>
           <a
             href="tel:+4700000000"
             className="rounded-full border border-white/30 px-8 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
@@ -37,9 +40,6 @@ export default function BookingCta() {
             Ring oss
           </a>
         </div>
-        <p className="mt-6 text-xs text-white/50">
-          Kontaktinfo og priser er foreløpige og oppdateres før lansering.
-        </p>
       </div>
     </section>
   );

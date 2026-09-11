@@ -29,6 +29,50 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Booking & admin
+
+Nettsiden har en bookingflyt (`/book`) og et admin-panel (`/admin`) for å
+godkjenne/avslå forespørsler. Faste regler ligger i
+[lib/config.ts](lib/config.ts) — pris, rengjøringsgebyr, sesong og minimum
+opphold.
+
+### Nå — må settes for at admin skal virke
+
+Legg til i `.env.local` lokalt, og i Vercel sine Environment Variables for
+produksjon:
+
+- `ADMIN_PASSWORD` — passordet du logger inn med på `/admin`.
+- `ADMIN_SESSION_SECRET` — en lang, tilfeldig streng (f.eks.
+  `openssl rand -hex 32`), brukes til å signere innloggingscookien.
+
+### Lagring av bookinger
+
+Uten videre oppsett brukes en lokal fil (`.data/bookings.json`) — fin til
+utvikling, men overlever ikke en ny deploy på Vercel. Før dere går live, sett
+opp **Vercel KV** (Upstash Redis) fra Vercel-dashboardet under prosjektets
+Storage-fane — det setter automatisk `KV_REST_API_URL` og
+`KV_REST_API_TOKEN`, og appen bytter til Redis uten kodeendringer.
+
+### Google Calendar (kobles til senere)
+
+Bookinger fungerer helt uten dette — sett opp når dere er klare:
+
+1. Opprett et prosjekt i [Google Cloud Console](https://console.cloud.google.com/), aktiver Calendar API.
+2. Opprett en service-konto, last ned JSON-nøkkelen.
+3. Del kalenderen du vil bruke med service-kontoens e-postadresse (Innstillinger for deling → gi tilgang til å endre hendelser).
+4. Sett i miljøvariablene:
+   - `GOOGLE_CALENDAR_ID` (kalenderens ID, finnes i kalenderinnstillingene)
+   - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+   - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` (hele `private_key`-verdien fra JSON-filen)
+
+### Betaling (kommer senere)
+
+Betalingssteget vises som en tydelig plassholder i bookingskjemaet
+([components/booking/PaymentNotice.tsx](components/booking/PaymentNotice.tsx)).
+Selve integrasjonen kobles inn i [lib/payments.ts](lib/payments.ts) og
+webhook-ruten [app/api/payments/webhook/route.ts](app/api/payments/webhook/route.ts)
+når en leverandør (Stripe, Vipps o.l.) er valgt.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

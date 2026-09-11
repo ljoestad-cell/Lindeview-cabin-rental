@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# lokalt bookinglager (kun dev – prod bruker Vercel KV/Upstash)
+/.data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

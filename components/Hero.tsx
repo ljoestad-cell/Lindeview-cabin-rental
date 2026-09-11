@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { BedDouble, Bath, Users, Fish, EvCharger } from "lucide-react";
 
 const stats = [
@@ -36,12 +37,12 @@ export default function Hero() {
         </p>
 
         <div className="mt-10 flex flex-wrap items-center gap-4">
-          <a
-            href="#bestill"
+          <Link
+            href="/book"
             className="rounded-full bg-accent px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
           >
             Sjekk tilgjengelighet
-          </a>
+          </Link>
           <a
             href="#galleri"
             className="rounded-full border border-white/40 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
