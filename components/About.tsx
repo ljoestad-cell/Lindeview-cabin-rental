@@ -37,7 +37,7 @@ export default function About() {
           <div className="mt-10 grid grid-cols-2 gap-6 border-t border-line pt-8">
             <div>
               <p className="font-display text-3xl text-brand">100%</p>
-              <p className="mt-1 text-sm text-muted">Privat og skjermet tomt</p>
+              <p className="mt-1 text-sm text-muted">Stillhet</p>
             </div>
             <div>
               <p className="font-display text-3xl text-brand">0 min</p>

@@ -3,21 +3,21 @@ import { Star } from "lucide-react";
 const reviews = [
   {
     quote:
-      "Helt magisk beliggenhet — vi så knapt et annet menneske på tre dager. Kjøkkenet er i en klasse for seg selv.",
-    name: "Kari H.",
-    context: "Familietur, sommer",
+      "Vi bodde i boligen i 12 dager sommeren 2025 med to familier. Huset, utsikten og roen var helt fantastisk. Vi følte oss veldig komfortable. Innredningen på overnattingsstedet er svært god! Separat toalett, fire soverom og vakre stuemøbler. Vi gikk ikke glipp av noe på kjøkkenet heller. Fra brødristeren til grillen til vaffeljernet – alt er tilgjengelig. Området inviterer deg til å gå turer, gå og fiske. Vi gir fem stjerner til alt og en stor takk til vertene våre!",
+    name: "Ronny",
+    context: "Familietur, sommer 2025",
   },
   {
     quote:
-      "Padlet ut fra vannet rett nedenfor hytta hver morgen. Fiskekortet som fulgte med var en kjempefin bonus.",
-    name: "Erik S.",
-    context: "Venneturer, høst",
+      "Vi hadde et herlig opphold her. Beliggenheten er vakker. Det er andre hytter i nærheten, men det føles fortsatt fantastisk avsidesliggende fordi du kan gå rett ut av huset og inn i naturen, med flere nydelige turstier som starter rett ved døren. Og utsikten er selvfølgelig fantastisk. Selve huset er moderne, komfortabelt og veldig godt utstyrt. Virkelig alt du trenger, fra en vaskemaskin til til og med en kakeform! Vi elsket den komfortable sofaen, og det var rikelig med steder rundt i huset hvor vi kunne sitte ute og nyte solen hele dagen. Vi bodde her om sommeren og elsket absolutt naturen og fotturene.",
+    name: "Sietske",
+    context: "Venneturer, sommer 2026",
   },
   {
     quote:
-      "Vi kom for turstiene og ble for utsikten. Standarden på hytta overgikk alt vi hadde forventet.",
-    name: "Ingrid & Thomas",
-    context: "Par, vinter",
+      "Vi var i Mortens vakre hus i 10 dager. Huset er veldig stort, og vi manglet ingenting – alt var tilgjengelig i tilstrekkelige mengder. Et nydelig turområde ligger rett utenfor døren, så vi kunne ta noen flotte turer. Hvis du vil kjøre litt lenger, kan du besøke de vakre kystbyene. Vi likte Grimstad veldig godt. Det er også bra at det er to store kjøleskap i huset, slik at man kan lagre nok mat. Vi nøt hver dag og hadde en flott ferie.",
+    name: "Kerstin",
+    context: "Ferie, sommer 2026",
   },
 ];
 

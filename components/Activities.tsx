@@ -23,6 +23,7 @@ const activities = [
     text: "Padle ut på blikkstille vann — perfekt for en rolig morgen eller en lang sommerkveld.",
     image: "/images/galleri/kayak-lake.jpeg",
     alt: "Kajakk på blikkstille vann i nærheten av Lindeview",
+    tag: "Inkludert i leien",
   },
   {
     icon: Mountain,
@@ -34,16 +35,16 @@ const activities = [
   {
     icon: Wind,
     title: "Paragliding",
-    text: "Kjente oppstigningspunkter for paragliding i kort avstand fra hytta.",
-    image: "/images/galleri/skavl.jpeg",
-    alt: "Dramatisk utsikt fra fjellkanten nær Lindeview",
+    text: "Nydelig oppstigningspunkt for paragliding i gangavstand fra hytta.",
+    image: "/images/galleri/paragliding.jpeg",
+    alt: "Paragliding i fjellet nær Lindeview",
   },
   {
     icon: Waves,
     title: "Badestrand",
     text: "Forfriskende dukkert i nærmeste vann, kort tur unna hytta.",
-    image: "/images/galleri/brua.jpeg",
-    alt: "Vann og bro i turterrenget nær Lindeview",
+    image: "/images/galleri/strand.jpeg",
+    alt: "Badestrand ved vannet nær Lindeview",
   },
 ];
 
