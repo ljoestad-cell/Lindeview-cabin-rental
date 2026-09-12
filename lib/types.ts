@@ -78,6 +78,15 @@ export type Booking = {
   extraCharges: ExtraCharge[];
 };
 
+/** En periode eieren har blokkert manuelt (eget bruk, vedlikehold o.l.) – ikke knyttet til en gjest. */
+export type BlockedRange = {
+  id: string;
+  start: string; // "YYYY-MM-DD", inkludert
+  end: string; // "YYYY-MM-DD", ekskludert
+  reason: string;
+  createdAt: string;
+};
+
 /** Felter en gjest sender inn – resten fylles/regnes på serveren. */
 export type BookingRequestInput = {
   checkIn: string;

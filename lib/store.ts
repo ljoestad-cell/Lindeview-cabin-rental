@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { Redis } from "@upstash/redis";
-import type { Booking } from "@/lib/types";
+import type { BlockedRange, Booking } from "@/lib/types";
 
 export interface BookingStore {
   listBookings(): Promise<Booking[]>;
@@ -9,14 +9,19 @@ export interface BookingStore {
   createBooking(booking: Booking): Promise<Booking>;
   updateBooking(id: string, patch: Partial<Booking>): Promise<Booking | null>;
   deleteBooking(id: string): Promise<void>;
+
+  listBlockedRanges(): Promise<BlockedRange[]>;
+  createBlockedRange(range: BlockedRange): Promise<BlockedRange>;
+  deleteBlockedRange(id: string): Promise<void>;
 }
 
-const REDIS_KEY = "lindeview:bookings";
+const REDIS_BOOKINGS_KEY = "lindeview:bookings";
+const REDIS_BLOCKED_KEY = "lindeview:blocked";
 
 /**
- * Produksjonslager: Upstash Redis (Vercel KV). Alle bookinger ligger som ett
- * JSON-felt i en Redis-hash – lite volum (én hytte, noen titalls bookinger i
- * året), så det er ikke behov for mer enn dette.
+ * Produksjonslager: Upstash Redis (Vercel KV). Alle bookinger/blokkeringer
+ * ligger som JSON-felt i egne Redis-hasher – lite volum (én hytte, noen
+ * titalls bookinger i året), så det er ikke behov for mer enn dette.
  */
 class RedisStore implements BookingStore {
   private redis: Redis;
@@ -33,17 +38,17 @@ class RedisStore implements BookingStore {
   }
 
   async listBookings(): Promise<Booking[]> {
-    const map = (await this.redis.hgetall<Record<string, Booking>>(REDIS_KEY)) ?? {};
+    const map = (await this.redis.hgetall<Record<string, Booking>>(REDIS_BOOKINGS_KEY)) ?? {};
     return Object.values(map);
   }
 
   async getBooking(id: string): Promise<Booking | null> {
-    const booking = await this.redis.hget<Booking>(REDIS_KEY, id);
+    const booking = await this.redis.hget<Booking>(REDIS_BOOKINGS_KEY, id);
     return booking ?? null;
   }
 
   async createBooking(booking: Booking): Promise<Booking> {
-    await this.redis.hset(REDIS_KEY, { [booking.id]: booking });
+    await this.redis.hset(REDIS_BOOKINGS_KEY, { [booking.id]: booking });
     return booking;
   }
 
@@ -51,68 +56,100 @@ class RedisStore implements BookingStore {
     const existing = await this.getBooking(id);
     if (!existing) return null;
     const updated = { ...existing, ...patch };
-    await this.redis.hset(REDIS_KEY, { [id]: updated });
+    await this.redis.hset(REDIS_BOOKINGS_KEY, { [id]: updated });
     return updated;
   }
 
   async deleteBooking(id: string): Promise<void> {
-    await this.redis.hdel(REDIS_KEY, id);
+    await this.redis.hdel(REDIS_BOOKINGS_KEY, id);
+  }
+
+  async listBlockedRanges(): Promise<BlockedRange[]> {
+    const map = (await this.redis.hgetall<Record<string, BlockedRange>>(REDIS_BLOCKED_KEY)) ?? {};
+    return Object.values(map);
+  }
+
+  async createBlockedRange(range: BlockedRange): Promise<BlockedRange> {
+    await this.redis.hset(REDIS_BLOCKED_KEY, { [range.id]: range });
+    return range;
+  }
+
+  async deleteBlockedRange(id: string): Promise<void> {
+    await this.redis.hdel(REDIS_BLOCKED_KEY, id);
   }
 }
 
 /**
- * Utviklingslager: lokal JSON-fil. Overlever ikke en ny deploy i produksjon
- * (Vercel-serverless har ikke varig filsystem), men er nok til `npm run dev`.
- * Filen ligger i `.data/` som er gitignored.
+ * Utviklingslager: lokale JSON-filer. Overlever ikke en ny deploy i
+ * produksjon (Vercel-serverless har ikke varig filsystem), men er nok til
+ * `npm run dev`. Filene ligger i `.data/` som er gitignored.
  */
 class FileStore implements BookingStore {
-  private filePath = path.join(process.cwd(), ".data", "bookings.json");
+  private bookingsPath = path.join(process.cwd(), ".data", "bookings.json");
+  private blockedPath = path.join(process.cwd(), ".data", "blocked.json");
 
-  private async readAll(): Promise<Record<string, Booking>> {
+  private async readAll<T>(filePath: string): Promise<Record<string, T>> {
     try {
-      const raw = await fs.readFile(this.filePath, "utf-8");
-      return JSON.parse(raw) as Record<string, Booking>;
+      const raw = await fs.readFile(filePath, "utf-8");
+      return JSON.parse(raw) as Record<string, T>;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") return {};
       throw err;
     }
   }
 
-  private async writeAll(map: Record<string, Booking>): Promise<void> {
-    await fs.mkdir(path.dirname(this.filePath), { recursive: true });
-    await fs.writeFile(this.filePath, JSON.stringify(map, null, 2), "utf-8");
+  private async writeAll<T>(filePath: string, map: Record<string, T>): Promise<void> {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(map, null, 2), "utf-8");
   }
 
   async listBookings(): Promise<Booking[]> {
-    return Object.values(await this.readAll());
+    return Object.values(await this.readAll<Booking>(this.bookingsPath));
   }
 
   async getBooking(id: string): Promise<Booking | null> {
-    const map = await this.readAll();
+    const map = await this.readAll<Booking>(this.bookingsPath);
     return map[id] ?? null;
   }
 
   async createBooking(booking: Booking): Promise<Booking> {
-    const map = await this.readAll();
+    const map = await this.readAll<Booking>(this.bookingsPath);
     map[booking.id] = booking;
-    await this.writeAll(map);
+    await this.writeAll(this.bookingsPath, map);
     return booking;
   }
 
   async updateBooking(id: string, patch: Partial<Booking>): Promise<Booking | null> {
-    const map = await this.readAll();
+    const map = await this.readAll<Booking>(this.bookingsPath);
     const existing = map[id];
     if (!existing) return null;
     const updated = { ...existing, ...patch };
     map[id] = updated;
-    await this.writeAll(map);
+    await this.writeAll(this.bookingsPath, map);
     return updated;
   }
 
   async deleteBooking(id: string): Promise<void> {
-    const map = await this.readAll();
+    const map = await this.readAll<Booking>(this.bookingsPath);
     delete map[id];
-    await this.writeAll(map);
+    await this.writeAll(this.bookingsPath, map);
+  }
+
+  async listBlockedRanges(): Promise<BlockedRange[]> {
+    return Object.values(await this.readAll<BlockedRange>(this.blockedPath));
+  }
+
+  async createBlockedRange(range: BlockedRange): Promise<BlockedRange> {
+    const map = await this.readAll<BlockedRange>(this.blockedPath);
+    map[range.id] = range;
+    await this.writeAll(this.blockedPath, map);
+    return range;
+  }
+
+  async deleteBlockedRange(id: string): Promise<void> {
+    const map = await this.readAll<BlockedRange>(this.blockedPath);
+    delete map[id];
+    await this.writeAll(this.blockedPath, map);
   }
 }
 

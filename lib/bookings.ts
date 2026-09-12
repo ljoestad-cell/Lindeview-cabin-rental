@@ -16,6 +16,7 @@ import { getStore } from "@/lib/store";
 import {
   DEFAULT_DEPOSIT,
   DEFAULT_MAIN_CHARGE,
+  type BlockedRange,
   type Booking,
   type BookingRequestInput,
   type BookingStatus,
@@ -80,14 +81,19 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
   validateInput(input);
 
   const store = getStore();
+  const requested = { start: input.checkIn, end: input.checkOut };
   const existing = await loadAllBookings();
   const overlapsConfirmed = existing.some(
-    (b) =>
-      b.status === "confirmed" &&
-      rangesOverlap({ start: b.checkIn, end: b.checkOut }, { start: input.checkIn, end: input.checkOut }),
+    (b) => b.status === "confirmed" && rangesOverlap({ start: b.checkIn, end: b.checkOut }, requested),
   );
   if (overlapsConfirmed) {
     throw new BookingValidationError("Datoene er allerede booket.");
+  }
+
+  const blockedRanges = await store.listBlockedRanges();
+  const overlapsBlocked = blockedRanges.some((r) => rangesOverlap({ start: r.start, end: r.end }, requested));
+  if (overlapsBlocked) {
+    throw new BookingValidationError("Datoene er ikke tilgjengelige.");
   }
 
   const pricing = quote(input.checkIn, input.checkOut);
@@ -233,6 +239,7 @@ export async function getAvailability(): Promise<Availability> {
   const bookings = await loadAllBookings();
   const confirmed = bookings.filter((b) => b.status === "confirmed");
   const pending = bookings.filter((b) => b.status === "pending");
+  const blockedRanges = await getStore().listBlockedRanges();
 
   let googleBusy: { start: string; end: string }[] = [];
   try {
@@ -244,9 +251,58 @@ export async function getAvailability(): Promise<Availability> {
   return {
     season: { start: SEASON_START, end: SEASON_END },
     minNights: MIN_NIGHTS,
-    blocked: [...confirmed.map((b) => ({ start: b.checkIn, end: b.checkOut })), ...googleBusy],
+    blocked: [
+      ...confirmed.map((b) => ({ start: b.checkIn, end: b.checkOut })),
+      ...blockedRanges.map((r) => ({ start: r.start, end: r.end })),
+      ...googleBusy,
+    ],
     tentative: pending.map((b) => ({ start: b.checkIn, end: b.checkOut })),
   };
+}
+
+// --- Manuell blokkering av datoer (admin) ------------------------------
+
+export async function listBlockedRanges(): Promise<BlockedRange[]> {
+  const ranges = await getStore().listBlockedRanges();
+  return ranges.sort((a, b) => a.start.localeCompare(b.start));
+}
+
+/** Admin: blokker en periode manuelt (eget bruk, vedlikehold o.l.). */
+export async function addBlockedRange(start: string, end: string, reason: string): Promise<BlockedRange> {
+  if (!isIsoDate(start) || !isIsoDate(end)) {
+    throw new BookingValidationError("Ugyldig dato.");
+  }
+  if (end <= start) {
+    throw new BookingValidationError("Sluttdato må være etter startdato.");
+  }
+
+  const bookings = await loadAllBookings();
+  const overlapsBooking = bookings.some(
+    (b) => b.status !== "declined" && rangesOverlap({ start: b.checkIn, end: b.checkOut }, { start, end }),
+  );
+  if (overlapsBooking) {
+    throw new BookingValidationError("Perioden overlapper med en eksisterende booking.");
+  }
+
+  const existingBlocks = await getStore().listBlockedRanges();
+  const overlapsBlock = existingBlocks.some((r) => rangesOverlap({ start: r.start, end: r.end }, { start, end }));
+  if (overlapsBlock) {
+    throw new BookingValidationError("Perioden overlapper med en eksisterende blokkering.");
+  }
+
+  const range: BlockedRange = {
+    id: randomUUID(),
+    start,
+    end,
+    reason: reason.trim(),
+    createdAt: new Date().toISOString(),
+  };
+  return getStore().createBlockedRange(range);
+}
+
+/** Admin: fjern en manuell blokkering. */
+export async function removeBlockedRange(id: string): Promise<void> {
+  await getStore().deleteBlockedRange(id);
 }
 
 // --- Betaling ---------------------------------------------------------
