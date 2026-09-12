@@ -28,7 +28,7 @@ export function quote(checkIn: string, checkOut: string): Quote {
   };
 }
 
-/** "kr 24 900" – norsk tusenskille med hardt mellomrom. */
-export function formatNok(amount: number): string {
-  return `kr ${amount.toLocaleString("nb-NO")}`;
+/** "1 000,00 €" – norsk tallformat med euro-symbol. */
+export function formatEur(amount: number): string {
+  return new Intl.NumberFormat("nb-NO", { style: "currency", currency: "EUR" }).format(amount);
 }

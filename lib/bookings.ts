@@ -1,15 +1,58 @@
 import { randomUUID } from "node:crypto";
 import * as calendar from "@/lib/calendar";
-import { MAX_GUESTS, MIN_NIGHTS, SEASON_END, SEASON_START } from "@/lib/config";
-import { isIsoDate, isWithinSeason, nightsBetween, rangesOverlap } from "@/lib/dates";
-import { notifyOwnerOfBooking } from "@/lib/notifications";
+import {
+  CHARGE_DAYS_BEFORE_CHECKIN,
+  MAX_GUESTS,
+  MIN_NIGHTS,
+  SEASON_END,
+  SEASON_START,
+} from "@/lib/config";
+import { addDays, isIsoDate, isWithinSeason, nightsBetween, rangesOverlap, today } from "@/lib/dates";
+import { notifyOwnerOfBooking, notifyOwnerOfPaymentIssue } from "@/lib/notifications";
+import * as payments from "@/lib/payments";
+import { isStripeConfigured } from "@/lib/stripe";
 import { quote } from "@/lib/pricing";
 import { getStore } from "@/lib/store";
-import type { Booking, BookingRequestInput, BookingStatus } from "@/lib/types";
+import {
+  DEFAULT_DEPOSIT,
+  DEFAULT_MAIN_CHARGE,
+  type Booking,
+  type BookingRequestInput,
+  type BookingStatus,
+  type ExtraCharge,
+} from "@/lib/types";
 
 export class BookingValidationError extends Error {}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Fyller inn standardverdier for felter som ikke fantes i eldre lagrede
+ * bookinger. `Booking` sier disse alltid finnes, men data skrevet før
+ * betalingsfeltene ble lagt til mangler dem i praksis – derfor `??`
+ * per felt i stedet for å stole på typen.
+ */
+function normalizeBooking(booking: Booking): Booking {
+  return {
+    ...booking,
+    stripeCustomerId: booking.stripeCustomerId ?? null,
+    defaultPaymentMethodId: booking.defaultPaymentMethodId ?? null,
+    secureCardUrl: booking.secureCardUrl ?? null,
+    mainCharge: booking.mainCharge ?? { ...DEFAULT_MAIN_CHARGE },
+    deposit: booking.deposit ?? { ...DEFAULT_DEPOSIT },
+    extraCharges: booking.extraCharges ?? [],
+  };
+}
+
+async function loadBooking(id: string): Promise<Booking | null> {
+  const booking = await getStore().getBooking(id);
+  return booking ? normalizeBooking(booking) : null;
+}
+
+async function loadAllBookings(): Promise<Booking[]> {
+  const bookings = await getStore().listBookings();
+  return bookings.map(normalizeBooking);
+}
 
 function validateInput(input: BookingRequestInput) {
   if (!isIsoDate(input.checkIn) || !isIsoDate(input.checkOut)) {
@@ -32,12 +75,12 @@ function validateInput(input: BookingRequestInput) {
   if (!input.phone.trim()) throw new BookingValidationError("Telefonnummer mangler.");
 }
 
-/** Oppretter en bookingforespørsel. Kaster BookingValidationError, eller returnerer 409-signal via null overlap check gjort av kalleren. */
+/** Oppretter en bookingforespørsel. Kaster BookingValidationError ved ugyldig input, sesong utenfor, for kort opphold eller overlapp. */
 export async function requestBooking(input: BookingRequestInput): Promise<Booking> {
   validateInput(input);
 
   const store = getStore();
-  const existing = await store.listBookings();
+  const existing = await loadAllBookings();
   const overlapsConfirmed = existing.some(
     (b) =>
       b.status === "confirmed" &&
@@ -61,8 +104,13 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     phone: input.phone.trim(),
     message: input.message.trim(),
     pricing,
-    paymentStatus: "not_configured",
     calendarEventId: null,
+    stripeCustomerId: null,
+    defaultPaymentMethodId: null,
+    secureCardUrl: null,
+    mainCharge: { ...DEFAULT_MAIN_CHARGE },
+    deposit: { ...DEFAULT_DEPOSIT },
+    extraCharges: [],
   };
 
   await store.createBooking(booking);
@@ -84,10 +132,45 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
   return booking;
 }
 
+/** Når hovedbeløpet forfaller for en booking – i dag hvis det allerede er nærmere innsjekk enn fristen. */
+function computeChargeAt(checkIn: string): string {
+  const dueDate = addDays(checkIn, -CHARGE_DAYS_BEFORE_CHECKIN);
+  return dueDate < today() ? today() : dueDate;
+}
+
+/** Oppretter (eller lager på nytt) secure-card-lenken for en booking. Best-effort. */
+async function refreshSecureCardLink(booking: Booking): Promise<Booking> {
+  try {
+    const session = await payments.createSecureCardSession(booking);
+    if (!session) return booking;
+    const patch = { stripeCustomerId: session.customerId, secureCardUrl: session.checkoutUrl };
+    await getStore().updateBooking(booking.id, patch);
+    return { ...booking, ...patch };
+  } catch (err) {
+    console.error("[bookings] Kunne ikke opprette betalingslenke:", err);
+    return booking;
+  }
+}
+
+/** Henter én booking (admin-bruk). Returnerer null hvis den ikke finnes. */
+export async function getBookingById(id: string): Promise<Booking | null> {
+  return loadBooking(id);
+}
+
+/** Admin: lag en ny secure-card-lenke manuelt (sen bestilling, eller utløpt lenke). */
+export async function regeneratePaymentLink(id: string): Promise<Booking | null> {
+  const booking = await loadBooking(id);
+  if (!booking) return null;
+  return refreshSecureCardLink(booking);
+}
+
 export async function setStatus(id: string, status: BookingStatus): Promise<Booking | null> {
   const store = getStore();
-  const updated = await store.updateBooking(id, { status });
-  if (!updated) return null;
+  const before = await loadBooking(id);
+  if (!before) return null;
+
+  await store.updateBooking(id, { status });
+  let updated = { ...before, status };
 
   try {
     if (status === "declined") {
@@ -96,10 +179,24 @@ export async function setStatus(id: string, status: BookingStatus): Promise<Book
       const eventId = await calendar.upsertEvent(updated);
       if (eventId && eventId !== updated.calendarEventId) {
         await store.updateBooking(id, { calendarEventId: eventId });
+        updated = { ...updated, calendarEventId: eventId };
       }
     }
   } catch (err) {
     console.error("[bookings] Kunne ikke oppdatere kalenderhendelse:", err);
+  }
+
+  if (status === "confirmed" && updated.mainCharge.status === "not_saved") {
+    updated = await refreshSecureCardLink(updated);
+  }
+
+  if (status === "declined" && updated.mainCharge.status === "paid") {
+    try {
+      const result = await payments.refundMainCharge(updated);
+      if (!result.ok) console.error("[bookings] Refusjon feilet:", result.error);
+    } catch (err) {
+      console.error("[bookings] Kunne ikke refundere hovedbeløp:", err);
+    }
   }
 
   return updated;
@@ -107,7 +204,7 @@ export async function setStatus(id: string, status: BookingStatus): Promise<Book
 
 export async function deleteBooking(id: string): Promise<void> {
   const store = getStore();
-  const booking = await store.getBooking(id);
+  const booking = await loadBooking(id);
   if (booking) {
     try {
       await calendar.deleteEvent(booking);
@@ -119,7 +216,7 @@ export async function deleteBooking(id: string): Promise<void> {
 }
 
 export async function listForAdmin(): Promise<Booking[]> {
-  const bookings = await getStore().listBookings();
+  const bookings = await loadAllBookings();
   return bookings.sort((a, b) => a.checkIn.localeCompare(b.checkIn));
 }
 
@@ -133,7 +230,7 @@ export type Availability = {
 };
 
 export async function getAvailability(): Promise<Availability> {
-  const bookings = await getStore().listBookings();
+  const bookings = await loadAllBookings();
   const confirmed = bookings.filter((b) => b.status === "confirmed");
   const pending = bookings.filter((b) => b.status === "pending");
 
@@ -150,4 +247,187 @@ export async function getAvailability(): Promise<Availability> {
     blocked: [...confirmed.map((b) => ({ start: b.checkIn, end: b.checkOut })), ...googleBusy],
     tentative: pending.map((b) => ({ start: b.checkIn, end: b.checkOut })),
   };
+}
+
+// --- Betaling ---------------------------------------------------------
+
+/**
+ * Kalles fra Stripe-webhooken når gjesten har sikret et kort (checkout.session.completed,
+ * mode "setup"). Lagrer kortet og avgjør om hovedbeløpet skal belastes med
+ * en gang (sen bestilling) eller planlegges til CHARGE_DAYS_BEFORE_CHECKIN
+ * dager før innsjekk.
+ */
+export async function attachPaymentMethod(
+  bookingId: string,
+  customerId: string,
+  paymentMethodId: string,
+): Promise<void> {
+  const booking = await loadBooking(bookingId);
+  if (!booking) return;
+
+  const chargeAt = computeChargeAt(booking.checkIn);
+  const store = getStore();
+
+  const patch = {
+    stripeCustomerId: customerId,
+    defaultPaymentMethodId: paymentMethodId,
+    mainCharge: { ...booking.mainCharge, status: "card_saved" as const, chargeAt },
+  };
+  await store.updateBooking(bookingId, patch);
+  const updated = { ...booking, ...patch };
+
+  if (chargeAt <= today()) {
+    await retryMainCharge(updated.id);
+  }
+}
+
+async function applyMainChargeResult(booking: Booking, result: payments.PaymentResult): Promise<Booking> {
+  const store = getStore();
+  if (result.ok) {
+    const patch = {
+      mainCharge: {
+        ...booking.mainCharge,
+        status: "paid" as const,
+        paymentIntentId: result.paymentIntentId,
+        paidAt: new Date().toISOString(),
+        lastError: null,
+      },
+    };
+    await store.updateBooking(booking.id, patch);
+    return { ...booking, ...patch };
+  }
+
+  const patch = {
+    mainCharge: { ...booking.mainCharge, status: "failed" as const, lastError: result.error },
+  };
+  await store.updateBooking(booking.id, patch);
+  try {
+    await notifyOwnerOfPaymentIssue({ ...booking, ...patch }, result.error);
+  } catch (err) {
+    console.error("[bookings] Kunne ikke varsle om betalingsfeil:", err);
+  }
+  return { ...booking, ...patch };
+}
+
+/** Belaster hovedbeløpet nå – kalt fra cron når forfalt, eller manuelt fra admin. */
+export async function retryMainCharge(bookingId: string): Promise<Booking | null> {
+  const booking = await loadBooking(bookingId);
+  if (!booking) return null;
+  if (!isStripeConfigured()) return booking;
+
+  const result = await payments.chargeMainAmount(booking);
+  return applyMainChargeResult(booking, result);
+}
+
+/** Reserverer, trekker eller frigir depositumet. */
+export async function manageDeposit(
+  bookingId: string,
+  action: "hold" | "capture" | "release",
+  amount?: number,
+): Promise<Booking | null> {
+  const booking = await loadBooking(bookingId);
+  if (!booking) return null;
+  if (!isStripeConfigured()) return booking;
+
+  const store = getStore();
+  const result =
+    action === "hold"
+      ? await payments.holdDeposit(booking)
+      : action === "capture"
+        ? await payments.captureDeposit(booking, amount)
+        : await payments.releaseDeposit(booking);
+
+  if (!result.ok) {
+    const patch = { deposit: { ...booking.deposit, status: "failed" as const, lastError: result.error } };
+    await store.updateBooking(bookingId, patch);
+    try {
+      await notifyOwnerOfPaymentIssue({ ...booking, ...patch }, `Depositum (${action}): ${result.error}`);
+    } catch (err) {
+      console.error("[bookings] Kunne ikke varsle om depositum-feil:", err);
+    }
+    return { ...booking, ...patch };
+  }
+
+  const statusByAction = { hold: "held", capture: "captured", release: "released" } as const;
+  const patch = {
+    deposit: {
+      ...booking.deposit,
+      status: statusByAction[action],
+      paymentIntentId: result.paymentIntentId,
+      lastError: null,
+      ...(action === "hold" ? { heldAt: new Date().toISOString() } : {}),
+      ...(action !== "hold" ? { resolvedAt: new Date().toISOString() } : {}),
+      ...(action === "capture" ? { capturedAmount: amount ?? booking.pricing.total } : {}),
+    },
+  };
+  await store.updateBooking(bookingId, patch);
+  return { ...booking, ...patch };
+}
+
+/** Trekker et tilleggsbeløp (skade, ekstra tjenester) fra det lagrede kortet. */
+export async function addExtraCharge(
+  bookingId: string,
+  amount: number,
+  description: string,
+): Promise<Booking | null> {
+  const booking = await loadBooking(bookingId);
+  if (!booking) return null;
+  if (!isStripeConfigured()) return booking;
+
+  const result = await payments.chargeExtra(booking, amount, description);
+  const entry: ExtraCharge = {
+    id: randomUUID(),
+    amount,
+    description,
+    createdAt: new Date().toISOString(),
+    status: result.ok ? "succeeded" : "failed",
+    paymentIntentId: result.ok ? result.paymentIntentId : null,
+  };
+
+  const patch = { extraCharges: [...booking.extraCharges, entry] };
+  const store = getStore();
+  await store.updateBooking(bookingId, patch);
+
+  if (!result.ok) {
+    try {
+      await notifyOwnerOfPaymentIssue(booking, `Tilleggsbeløp «${description}»: ${result.error}`);
+    } catch (err) {
+      console.error("[bookings] Kunne ikke varsle om feilet tilleggsbeløp:", err);
+    }
+  }
+
+  return { ...booking, ...patch };
+}
+
+/**
+ * Kjøres daglig av cron-jobben: belaster hovedbeløp som har forfalt, og
+ * reserverer depositum for bookinger som har nådd utsjekksdagen.
+ */
+export async function runDueCharges(): Promise<{ charged: string[]; deposits: string[] }> {
+  const bookings = await loadAllBookings();
+  const confirmed = bookings.filter((b) => b.status === "confirmed");
+  const now = today();
+
+  const charged: string[] = [];
+  for (const booking of confirmed) {
+    const due =
+      booking.mainCharge.status === "card_saved" &&
+      booking.mainCharge.chargeAt !== null &&
+      booking.mainCharge.chargeAt <= now;
+    if (due) {
+      await retryMainCharge(booking.id);
+      charged.push(booking.id);
+    }
+  }
+
+  const deposits: string[] = [];
+  for (const booking of confirmed) {
+    const due = booking.mainCharge.status === "paid" && booking.deposit.status === "none" && booking.checkOut <= now;
+    if (due) {
+      await manageDeposit(booking.id, "hold");
+      deposits.push(booking.id);
+    }
+  }
+
+  return { charged, deposits };
 }

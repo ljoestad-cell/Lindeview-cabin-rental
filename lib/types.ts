@@ -2,8 +2,54 @@ import type { Quote } from "@/lib/pricing";
 
 export type BookingStatus = "pending" | "confirmed" | "declined";
 
-/** Betaling kobles på senere – feltet finnes allerede så modellen er klar. */
-export type PaymentStatus = "not_configured" | "pending" | "paid";
+export type MainChargeStatus = "not_saved" | "card_saved" | "paid" | "failed";
+
+export type MainCharge = {
+  status: MainChargeStatus;
+  /** "YYYY-MM-DD" – checkIn minus CHARGE_DAYS_BEFORE_CHECKIN, eller i dag ved sen bestilling. */
+  chargeAt: string | null;
+  paymentIntentId: string | null;
+  paidAt: string | null;
+  lastError: string | null;
+};
+
+export type DepositStatus = "none" | "held" | "captured" | "released" | "failed";
+
+export type Deposit = {
+  status: DepositStatus;
+  paymentIntentId: string | null;
+  heldAt: string | null;
+  resolvedAt: string | null;
+  /** Satt hvis bare deler av depositumet ble trukket. */
+  capturedAmount: number | null;
+  lastError: string | null;
+};
+
+export type ExtraCharge = {
+  id: string;
+  amount: number;
+  description: string;
+  createdAt: string;
+  status: "succeeded" | "failed";
+  paymentIntentId: string | null;
+};
+
+export const DEFAULT_MAIN_CHARGE: MainCharge = {
+  status: "not_saved",
+  chargeAt: null,
+  paymentIntentId: null,
+  paidAt: null,
+  lastError: null,
+};
+
+export const DEFAULT_DEPOSIT: Deposit = {
+  status: "none",
+  paymentIntentId: null,
+  heldAt: null,
+  resolvedAt: null,
+  capturedAmount: null,
+  lastError: null,
+};
 
 export type Booking = {
   id: string;
@@ -18,9 +64,18 @@ export type Booking = {
   phone: string;
   message: string;
   pricing: Quote;
-  paymentStatus: PaymentStatus;
   /** Id på hendelsen i Google Calendar, når kalenderkobling er satt opp. */
   calendarEventId: string | null;
+
+  stripeCustomerId: string | null;
+  /** Kortet gjesten sikret via Checkout – brukes til alle senere off-session-belastninger. */
+  defaultPaymentMethodId: string | null;
+  /** Engangslenke gjesten bruker for å sikre kortet sitt (Stripe Checkout, mode "setup"). */
+  secureCardUrl: string | null;
+
+  mainCharge: MainCharge;
+  deposit: Deposit;
+  extraCharges: ExtraCharge[];
 };
 
 /** Felter en gjest sender inn – resten fylles/regnes på serveren. */

@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CLEANING_FEE, MIN_NIGHTS, NIGHTLY_RATE, SEASON_LABEL } from "@/lib/config";
-import { formatNok } from "@/lib/pricing";
+import { formatEur } from "@/lib/pricing";
 
 export default function BookingCta() {
   return (
@@ -21,8 +21,8 @@ export default function BookingCta() {
           Klar for noen rolige dager på fjellet?
         </h2>
         <p className="mt-6 text-lg leading-relaxed text-white/80">
-          {formatNok(NIGHTLY_RATE)} per natt · Fiskekort inkludert · Minimum{" "}
-          {MIN_NIGHTS} netter · Rengjøringsgebyr {formatNok(CLEANING_FEE)}.
+          {formatEur(NIGHTLY_RATE)} per natt · Fiskekort inkludert · Minimum{" "}
+          {MIN_NIGHTS} netter · Rengjøringsgebyr {formatEur(CLEANING_FEE)}.
           Kalenderen er åpen for {SEASON_LABEL}.
         </p>
 

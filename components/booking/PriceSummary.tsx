@@ -1,4 +1,4 @@
-import { formatNok, quote } from "@/lib/pricing";
+import { formatEur, quote } from "@/lib/pricing";
 
 type Props = {
   checkIn: string | null;
@@ -23,17 +23,17 @@ export default function PriceSummary({ checkIn, checkOut }: Props) {
       <dl className="space-y-3 text-sm">
         <div className="flex items-center justify-between">
           <dt className="text-muted">
-            {nights} {nights === 1 ? "natt" : "netter"} × {formatNok(nightlyRate)}
+            {nights} {nights === 1 ? "natt" : "netter"} × {formatEur(nightlyRate)}
           </dt>
-          <dd className="font-medium text-foreground">{formatNok(nightsTotal)}</dd>
+          <dd className="font-medium text-foreground">{formatEur(nightsTotal)}</dd>
         </div>
         <div className="flex items-center justify-between">
           <dt className="text-muted">Rengjøringsgebyr</dt>
-          <dd className="font-medium text-foreground">{formatNok(cleaningFee)}</dd>
+          <dd className="font-medium text-foreground">{formatEur(cleaningFee)}</dd>
         </div>
         <div className="flex items-center justify-between border-t border-line pt-3 text-base">
           <dt className="font-display text-brand">Totalt</dt>
-          <dd className="font-display text-lg text-brand">{formatNok(total)}</dd>
+          <dd className="font-display text-lg text-brand">{formatEur(total)}</dd>
         </div>
       </dl>
     </div>

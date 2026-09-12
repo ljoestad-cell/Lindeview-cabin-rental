@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { MAX_GUESTS, MIN_NIGHTS } from "@/lib/config";
 import type { DateRange } from "@/lib/dates";
-import { formatNok, quote } from "@/lib/pricing";
+import { formatEur, quote } from "@/lib/pricing";
 import BookingCalendar from "@/components/booking/BookingCalendar";
 import PriceSummary from "@/components/booking/PriceSummary";
 import PaymentNotice from "@/components/booking/PaymentNotice";
@@ -88,7 +88,7 @@ export default function BookingClient({ availability }: { availability: Availabi
       <div className="rounded-2xl bg-surface p-8 text-center ring-1 ring-line">
         <p className="font-display text-2xl text-brand">Forespørselen er sendt!</p>
         <p className="mt-3 text-muted">
-          {range.checkIn} – {range.checkOut} · {formatNok(total)} totalt. Vi tar kontakt på{" "}
+          {range.checkIn} – {range.checkOut} · {formatEur(total)} totalt. Vi tar kontakt på{" "}
           {form.email} så snart forespørselen er behandlet.
         </p>
         <button

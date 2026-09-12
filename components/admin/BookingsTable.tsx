@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatNok } from "@/lib/pricing";
+import { formatEur } from "@/lib/pricing";
 import type { Booking, BookingStatus } from "@/lib/types";
+import PaymentPanel from "@/components/admin/PaymentPanel";
 
 const STATUS_LABEL: Record<BookingStatus, string> = {
   pending: "Venter",
@@ -102,7 +103,7 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                 </p>
                 {b.message && <p className="mt-2 text-sm text-foreground">«{b.message}»</p>}
                 <p className="mt-2 text-sm font-medium text-foreground">
-                  {formatNok(b.pricing.total)} totalt
+                  {formatEur(b.pricing.total)} totalt
                 </p>
               </div>
 
@@ -134,6 +135,13 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                 </ActionButton>
               </div>
             </div>
+
+            {b.status === "confirmed" && (
+              <PaymentPanel
+                booking={b}
+                onUpdate={(updated) => setBookings((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))}
+              />
+            )}
           </div>
         ))}
       </div>

@@ -81,13 +81,50 @@ Bookinger fungerer helt uten dette — sett opp når dere er klare:
    - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
    - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` (hele `private_key`-verdien fra JSON-filen)
 
-### Betaling (kommer senere)
+### Betaling (Stripe)
 
-Betalingssteget vises som en tydelig plassholder i bookingskjemaet
-([components/booking/PaymentNotice.tsx](components/booking/PaymentNotice.tsx)).
-Selve integrasjonen kobles inn i [lib/payments.ts](lib/payments.ts) og
-webhook-ruten [app/api/payments/webhook/route.ts](app/api/payments/webhook/route.ts)
-når en leverandør (Stripe, Vipps o.l.) er valgt.
+Alle priser er i **EUR** ([lib/config.ts](lib/config.ts)). Betalingsflyten:
+
+1. Du bekrefter en booking i `/admin` → en secure-card-lenke lages automatisk
+   (Stripe Checkout, "sikre kort"-modus — ingen belastning). Lenken **vises i
+   admin** for deg å sende til gjesten (SMS/e-post) inntil gjeste-e-post er
+   satt opp (se Resend-seksjonen over — krever et verifisert domene).
+2. Gjesten fyller inn kortet sitt. Ingenting belastes ennå.
+3. **Hovedbeløpet** (leie + utvask) trekkes automatisk 30 dager før innsjekk
+   — eller med en gang, hvis bookingen ble bekreftet senere enn det.
+4. **Depositum** (1000 EUR) reserveres automatisk på kortet **på
+   utsjekksdagen** (ikke før innsjekk — et korthold varer bare ca. 7 dager
+   hos de fleste banker, så det holdes til rett etter oppholdet i stedet for
+   å strekke seg over hele det). Du har deretter noen dager på deg til å
+   inspisere hytta og enten trekke (helt/delvis) eller frigi det i `/admin`.
+5. **Tilleggsbeløp** (skade, ekstra rengjøring) kan trekkes når som helst fra
+   samme lagrede kort, også i `/admin`.
+
+En daglig jobb (Vercel Cron, se [vercel.json](vercel.json)) sjekker og
+utfører belastninger som har forfalt. Alt kan også trigges manuelt fra
+`/admin` (nyttig for sene bestillinger, eller hvis noe feiler og må prøves
+på nytt).
+
+**Oppsett i Stripe:**
+
+1. Opprett konto på [stripe.com](https://dashboard.stripe.com/register) —
+   start i **testmodus** (bryteren øverst til høyre i dashbordet).
+2. **Developers → API keys** → kopier **Secret key**.
+3. **Developers → Webhooks → Add endpoint**:
+   - URL: `https://<ditt-domene>/api/stripe/webhook`
+   - Events: `checkout.session.completed`
+   - Kopier **Signing secret** som vises etterpå.
+4. Sett i miljøvariablene (samme sted som `ADMIN_PASSWORD`):
+   - `STRIPE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+   - `CRON_SECRET` — en vilkårlig, hemmelig streng du finner på (f.eks.
+     `openssl rand -hex 32`); Vercel sender den automatisk til cron-jobben.
+5. Redeploy.
+6. **Test** i testmodus med testkort `4242 4242 4242 4242`, hvilken som helst
+   fremtidig utløpsdato og CVC — hele flyten (sikre kort → belastning →
+   depositum → tilleggsbeløp) kan kjøres uten ekte penger. Bytt til
+   live-nøkler (`sk_live_...`) og et nytt live-webhook-endepunkt når dere er
+   klare for skarpe betalinger.
 
 ## Deploy on Vercel
 
