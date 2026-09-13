@@ -1,3 +1,4 @@
+import { Lock } from "lucide-react";
 import { CHARGE_DAYS_BEFORE_CHECKIN, DEPOSIT_AMOUNT } from "@/lib/config";
 import { formatEur } from "@/lib/pricing";
 
@@ -12,6 +13,12 @@ export default function PaymentNotice() {
         tillegg reserveres et depositum på {formatEur(DEPOSIT_AMOUNT)} ved
         utsjekk, og frigis normalt innen noen dager hvis alt er i orden.
       </p>
+      <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-muted">
+        <Lock className="h-3.5 w-3.5" strokeWidth={2} />
+        <span>
+          Sikker betaling via <span className="font-semibold text-[#635BFF]">Stripe</span>
+        </span>
+      </div>
     </div>
   );
 }

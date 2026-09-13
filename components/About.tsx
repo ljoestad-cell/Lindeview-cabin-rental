@@ -46,6 +46,18 @@ export default function About() {
           </div>
         </div>
       </div>
+
+      <div className="mt-14 overflow-hidden rounded-2xl ring-1 ring-line">
+        <iframe
+          src="https://www.google.com/maps?q=Hillestadheia&output=embed"
+          width="100%"
+          height="360"
+          style={{ border: 0 }}
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          title="Kart over Hillestadheia"
+        />
+      </div>
     </section>
   );
 }

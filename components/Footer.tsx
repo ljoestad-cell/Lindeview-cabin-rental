@@ -12,11 +12,12 @@ export default function Footer() {
 
         <div className="flex flex-col gap-1 text-sm text-white/70">
           <p className="font-medium text-white">Kontakt</p>
+          <p>Morten Ljøstad</p>
           <a href="mailto:post@lindeview.no" className="hover:text-white">
             post@lindeview.no
           </a>
-          <a href="tel:+4700000000" className="hover:text-white">
-            +47 000 00 000
+          <a href="tel:+4790591820" className="hover:text-white">
+            +47 90 59 18 20
           </a>
           <p>Hillestadheia</p>
         </div>

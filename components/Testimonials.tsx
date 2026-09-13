@@ -59,6 +59,18 @@ export default function Testimonials() {
         Eksempelomtaler — erstattes med ekte gjesteomtaler etter hvert som de
         kommer inn.
       </p>
+      <p className="mt-2 text-sm text-muted">
+        Lindeview er også markedsført på{" "}
+        <a
+          href="https://www.airbnb.no/rooms/942451723603454434?check_in=2027-06-07&check_out=2027-06-14&search_mode=regular_search&source_impression_id=p3_2bf6ca12-64c2-479b-9cb4-fff11ce2dbc8_6504dc59-f263-45c0-90b5-277658082ca4_0_942451723603454434_0&previous_page_section_name=1000&federated_search_id=2bf6ca12-64c2-479b-9cb4-fff11ce2dbc8"
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-accent underline hover:text-accent-dark"
+        >
+          Airbnb
+        </a>
+        , der du finner flere uavhengige omtaler.
+      </p>
     </section>
   );
 }

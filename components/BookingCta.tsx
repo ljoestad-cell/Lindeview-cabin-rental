@@ -34,7 +34,7 @@ export default function BookingCta() {
             Send booking-forespørsel
           </Link>
           <a
-            href="tel:+4700000000"
+            href="tel:+4790591820"
             className="rounded-full border border-white/30 px-8 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
           >
             Ring oss
