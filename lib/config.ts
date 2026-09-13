@@ -28,7 +28,7 @@ export const OWNER_EMAIL = "ljoestad@gmail.com";
 
 /** Vises tydelig på bookingsiden – ingen unntak håndheves foreløpig i koden, bare kommunikasjon. */
 export const FAMILY_ONLY_NOTICE =
-  "Lindeview leies kun ut til familier — ikke til voksne grupper, firmaer eller arrangementer.";
+  "VIKTIG! Lindeview leies kun ut til familier — ikke til voksne grupper, firmaer eller arrangementer.";
 
 /** Tillegg som påvirker prisen – fast pris pr. booking, ikke pr. natt. */
 export const EV_CHARGER_PRICE = 60;
