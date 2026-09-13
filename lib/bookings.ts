@@ -144,18 +144,17 @@ function computeChargeAt(checkIn: string): string {
   return dueDate < today() ? today() : dueDate;
 }
 
-/** Oppretter (eller lager på nytt) secure-card-lenken for en booking. Best-effort. */
+/**
+ * Oppretter (eller lager på nytt) secure-card-lenken for en booking. Kaster
+ * videre hvis Stripe-kallet feiler – kalleren avgjør om det skal vises til
+ * admin (manuell handling) eller bare logges (automatisk ved bekreftelse).
+ */
 async function refreshSecureCardLink(booking: Booking): Promise<Booking> {
-  try {
-    const session = await payments.createSecureCardSession(booking);
-    if (!session) return booking;
-    const patch = { stripeCustomerId: session.customerId, secureCardUrl: session.checkoutUrl };
-    await getStore().updateBooking(booking.id, patch);
-    return { ...booking, ...patch };
-  } catch (err) {
-    console.error("[bookings] Kunne ikke opprette betalingslenke:", err);
-    return booking;
-  }
+  const session = await payments.createSecureCardSession(booking);
+  if (!session) return booking;
+  const patch = { stripeCustomerId: session.customerId, secureCardUrl: session.checkoutUrl };
+  await getStore().updateBooking(booking.id, patch);
+  return { ...booking, ...patch };
 }
 
 /** Henter én booking (admin-bruk). Returnerer null hvis den ikke finnes. */
@@ -193,7 +192,13 @@ export async function setStatus(id: string, status: BookingStatus): Promise<Book
   }
 
   if (status === "confirmed" && updated.mainCharge.status === "not_saved") {
-    updated = await refreshSecureCardLink(updated);
+    try {
+      updated = await refreshSecureCardLink(updated);
+    } catch (err) {
+      // Skal aldri velte selve bekreftelsen – admin kan lage lenken manuelt
+      // etterpå via "Lag betalingslenke", som da viser feilen i klartekst.
+      console.error("[bookings] Kunne ikke opprette betalingslenke ved bekreftelse:", err);
+    }
   }
 
   if (status === "declined" && updated.mainCharge.status === "paid") {
