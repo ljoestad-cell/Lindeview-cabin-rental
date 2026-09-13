@@ -62,7 +62,7 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
       <div className="space-y-1.5">
         {booking.mainCharge.status === "not_saved" && (
           <>
-            <p className="text-muted">Venter på at gjesten sikrer en betalingsmetode.</p>
+            <StatusBadge variant="yellow">Venter på at gjesten sikrer en betalingsmetode</StatusBadge>
             {booking.secureCardUrl && (
               <div className="flex items-center gap-2">
                 <a
@@ -85,8 +85,9 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
         )}
         {booking.mainCharge.status === "card_saved" && (
           <>
+            <StatusBadge variant="green">Kort sikret</StatusBadge>
             <p className="text-muted">
-              Kort sikret. Belastes automatisk {booking.mainCharge.chargeAt}, eller belast nå:
+              Belastes automatisk {booking.mainCharge.chargeAt}, eller belast nå:
             </p>
             <SmallButton busy={busy === "charge"} onClick={() => run("charge", `${base}/charge`)}>
               Belast nå
@@ -220,6 +221,19 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Samme "ramme"-stil som status-pillen på selve bookingen (se BookingsTable). */
+function StatusBadge({ children, variant }: { children: React.ReactNode; variant: "yellow" | "green" }) {
+  const styles = {
+    yellow: "bg-yellow-100 text-yellow-800",
+    green: "bg-emerald-100 text-emerald-800",
+  };
+  return (
+    <span className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${styles[variant]}`}>
+      {children}
+    </span>
   );
 }
 
