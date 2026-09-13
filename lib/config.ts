@@ -25,3 +25,17 @@ export const SEASON_LABEL = "1. mai – 30. september 2027";
 
 /** Eieren mottar e-postvarsel om nye bookingforespørsler og betalingsproblemer på denne adressen. */
 export const OWNER_EMAIL = "ljoestad@gmail.com";
+
+/** Vises tydelig på bookingsiden – ingen unntak håndheves foreløpig i koden, bare kommunikasjon. */
+export const FAMILY_ONLY_NOTICE =
+  "Lindeview leies kun ut til familier — ikke til voksne grupper, firmaer eller arrangementer.";
+
+/** Tillegg som påvirker prisen – fast pris pr. booking, ikke pr. natt. */
+export const EV_CHARGER_PRICE = 60;
+export const EV_CHARGER_MAX = 4;
+
+export const PET_PRICE = 60;
+export const PET_MAX = 4;
+
+export const BEDDING_PRICE = 25;
+export const BEDDING_MAX = 10;

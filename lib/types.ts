@@ -1,4 +1,4 @@
-import type { Quote } from "@/lib/pricing";
+import type { BookingExtras, Quote } from "@/lib/pricing";
 
 export type BookingStatus = "pending" | "confirmed" | "declined";
 
@@ -63,6 +63,7 @@ export type Booking = {
   email: string;
   phone: string;
   message: string;
+  extras: BookingExtras;
   pricing: Quote;
   /** Id på hendelsen i Google Calendar, når kalenderkobling er satt opp. */
   calendarEventId: string | null;
@@ -108,4 +109,5 @@ export type BookingRequestInput = {
   email: string;
   phone: string;
   message: string;
+  extras: BookingExtras;
 };

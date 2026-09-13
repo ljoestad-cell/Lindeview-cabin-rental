@@ -4,7 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BookingClient from "@/components/booking/BookingClient";
 import { getAvailability } from "@/lib/bookings";
-import { SEASON_LABEL } from "@/lib/config";
+import { FAMILY_ONLY_NOTICE, SEASON_LABEL } from "@/lib/config";
 
 export const metadata: Metadata = {
   title: "Book Lindeview | Bookingforespørsel",
@@ -37,6 +37,10 @@ export default async function BookPage() {
             {availability.minNights} netter. Dette er en forespørsel — du får svar fra oss
             før noe er endelig bekreftet.
           </p>
+
+          <div className="mt-6 max-w-2xl rounded-2xl border border-accent/30 bg-accent/5 px-5 py-4">
+            <p className="text-sm font-medium text-brand">{FAMILY_ONLY_NOTICE}</p>
+          </div>
 
           <div className="mt-12">
             <BookingClient availability={availability} />

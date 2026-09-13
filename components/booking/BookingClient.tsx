@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MAX_GUESTS, MIN_NIGHTS } from "@/lib/config";
+import { BEDDING_MAX, BEDDING_PRICE, EV_CHARGER_MAX, EV_CHARGER_PRICE, MAX_GUESTS, MIN_NIGHTS, PET_MAX, PET_PRICE } from "@/lib/config";
 import type { DateRange } from "@/lib/dates";
-import { formatEur, quote } from "@/lib/pricing";
+import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras } from "@/lib/pricing";
 import BookingCalendar from "@/components/booking/BookingCalendar";
 import PriceSummary from "@/components/booking/PriceSummary";
 import PaymentNotice from "@/components/booking/PaymentNotice";
+import QuantityField from "@/components/booking/QuantityField";
 
 type Availability = {
   season: { start: string; end: string };
@@ -36,6 +37,7 @@ export default function BookingClient({ availability }: { availability: Availabi
     checkOut: null,
   });
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [extras, setExtras] = useState<BookingExtras>(DEFAULT_EXTRAS);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -64,6 +66,7 @@ export default function BookingClient({ availability }: { availability: Availabi
           email: form.email,
           phone: form.phone,
           message: form.message,
+          extras,
         }),
       });
 
@@ -83,7 +86,7 @@ export default function BookingClient({ availability }: { availability: Availabi
   }
 
   if (success && range.checkIn && range.checkOut) {
-    const { total } = quote(range.checkIn, range.checkOut);
+    const { total } = quote(range.checkIn, range.checkOut, extras);
     return (
       <div className="rounded-2xl bg-surface p-8 text-center ring-1 ring-line">
         <p className="font-display text-2xl text-brand">Forespørselen er sendt!</p>
@@ -97,6 +100,7 @@ export default function BookingClient({ availability }: { availability: Availabi
             setSuccess(false);
             setRange({ checkIn: null, checkOut: null });
             setForm(EMPTY_FORM);
+            setExtras(DEFAULT_EXTRAS);
           }}
           className="mt-6 rounded-full border border-line px-6 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand/5"
         >
@@ -123,7 +127,7 @@ export default function BookingClient({ availability }: { availability: Availabi
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <PriceSummary checkIn={range.checkIn} checkOut={range.checkOut} />
+        <PriceSummary checkIn={range.checkIn} checkOut={range.checkOut} extras={extras} />
 
         <div className="space-y-4 rounded-2xl bg-surface p-6 ring-1 ring-line">
           <Field label="Navn">
@@ -171,6 +175,35 @@ export default function BookingClient({ availability }: { availability: Availabi
               className={`${INPUT_CLASS} resize-none`}
             />
           </Field>
+        </div>
+
+        <div className="divide-y divide-line rounded-2xl bg-surface px-6 ring-1 ring-line">
+          <p className="pt-5 text-sm font-medium text-foreground">Tillegg</p>
+          <QuantityField
+            label="Lading av el-bil"
+            description="Antall biler"
+            pricePerUnit={EV_CHARGER_PRICE}
+            max={EV_CHARGER_MAX}
+            value={extras.evChargers}
+            onChange={(v) => setExtras({ ...extras, evChargers: v })}
+          />
+          <QuantityField
+            label="Vi har med kjæledyr"
+            description="Antall dyr"
+            pricePerUnit={PET_PRICE}
+            max={PET_MAX}
+            value={extras.pets}
+            onChange={(v) => setExtras({ ...extras, pets: v })}
+          />
+          <QuantityField
+            label="Leie av sengetøy & håndklær"
+            description="Antall sett"
+            pricePerUnit={BEDDING_PRICE}
+            max={BEDDING_MAX}
+            value={extras.bedding}
+            onChange={(v) => setExtras({ ...extras, bedding: v })}
+          />
+          <div className="h-1" />
         </div>
 
         <PaymentNotice />

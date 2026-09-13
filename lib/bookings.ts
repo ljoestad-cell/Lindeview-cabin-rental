@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import * as calendar from "@/lib/calendar";
 import {
+  BEDDING_MAX,
   CHARGE_DAYS_BEFORE_CHECKIN,
+  EV_CHARGER_MAX,
   MAX_GUESTS,
   MIN_NIGHTS,
+  PET_MAX,
   SEASON_END,
   SEASON_START,
 } from "@/lib/config";
@@ -11,7 +14,7 @@ import { addDays, isIsoDate, isWithinSeason, nightsBetween, rangesOverlap, today
 import { notifyOwnerOfBooking, notifyOwnerOfPaymentIssue } from "@/lib/notifications";
 import * as payments from "@/lib/payments";
 import { isStripeConfigured } from "@/lib/stripe";
-import { quote } from "@/lib/pricing";
+import { DEFAULT_EXTRAS, quote, type BookingExtras } from "@/lib/pricing";
 import { getStore } from "@/lib/store";
 import {
   DEFAULT_DEPOSIT,
@@ -42,7 +45,21 @@ function normalizeBooking(booking: Booking): Booking {
     mainCharge: booking.mainCharge ?? { ...DEFAULT_MAIN_CHARGE },
     deposit: booking.deposit ?? { ...DEFAULT_DEPOSIT },
     extraCharges: booking.extraCharges ?? [],
+    extras: booking.extras ?? { ...DEFAULT_EXTRAS },
   };
+}
+
+function validateExtras(extras: BookingExtras) {
+  const checks: [number, number, string][] = [
+    [extras.evChargers, EV_CHARGER_MAX, "Antall el-biler"],
+    [extras.pets, PET_MAX, "Antall kjæledyr"],
+    [extras.bedding, BEDDING_MAX, "Antall sett sengetøy/håndklær"],
+  ];
+  for (const [value, max, label] of checks) {
+    if (!Number.isInteger(value) || value < 0 || value > max) {
+      throw new BookingValidationError(`${label} må være mellom 0 og ${max}.`);
+    }
+  }
 }
 
 async function loadBooking(id: string): Promise<Booking | null> {
@@ -74,6 +91,7 @@ function validateInput(input: BookingRequestInput) {
   if (!input.name.trim()) throw new BookingValidationError("Navn mangler.");
   if (!EMAIL_RE.test(input.email)) throw new BookingValidationError("Ugyldig e-postadresse.");
   if (!input.phone.trim()) throw new BookingValidationError("Telefonnummer mangler.");
+  validateExtras(input.extras ?? DEFAULT_EXTRAS);
 }
 
 /** Oppretter en bookingforespørsel. Kaster BookingValidationError ved ugyldig input, sesong utenfor, for kort opphold eller overlapp. */
@@ -96,7 +114,8 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     throw new BookingValidationError("Datoene er ikke tilgjengelige.");
   }
 
-  const pricing = quote(input.checkIn, input.checkOut);
+  const extras = input.extras ?? DEFAULT_EXTRAS;
+  const pricing = quote(input.checkIn, input.checkOut, extras);
   const booking: Booking = {
     id: randomUUID(),
     createdAt: new Date().toISOString(),
@@ -109,6 +128,7 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     email: input.email.trim(),
     phone: input.phone.trim(),
     message: input.message.trim(),
+    extras,
     pricing,
     calendarEventId: null,
     stripeCustomerId: null,

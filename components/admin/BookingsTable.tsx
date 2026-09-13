@@ -2,9 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatEur } from "@/lib/pricing";
+import { formatEur, type BookingExtras } from "@/lib/pricing";
 import type { Booking, BookingStatus } from "@/lib/types";
 import PaymentPanel from "@/components/admin/PaymentPanel";
+
+function extrasSummary(extras: BookingExtras): string {
+  const parts: string[] = [];
+  if (extras.evChargers > 0) parts.push(`${extras.evChargers} el-bil${extras.evChargers > 1 ? "er" : ""}`);
+  if (extras.pets > 0) parts.push(`${extras.pets} kjæledyr`);
+  if (extras.bedding > 0) parts.push(`${extras.bedding} sett sengetøy/håndklær`);
+  return parts.join(", ");
+}
 
 const STATUS_LABEL: Record<BookingStatus, string> = {
   pending: "Venter",
@@ -91,6 +99,9 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                   {b.name} · {b.email} · {b.phone} · {b.guests} gjester
                 </p>
                 {b.message && <p className="mt-2 text-sm text-foreground">«{b.message}»</p>}
+                {extrasSummary(b.extras) && (
+                  <p className="mt-2 text-sm text-muted">Tillegg: {extrasSummary(b.extras)}</p>
+                )}
                 <p className="mt-2 text-sm font-medium text-foreground">
                   {formatEur(b.pricing.total)} totalt
                 </p>

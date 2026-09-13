@@ -1,9 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { hasValidSession } from "@/lib/auth";
 import { BookingValidationError, listForAdmin, requestBooking } from "@/lib/bookings";
+import { DEFAULT_EXTRAS, type BookingExtras } from "@/lib/pricing";
 import type { BookingRequestInput } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+function isExtrasShape(value: unknown): value is BookingExtras {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.evChargers === "number" && typeof v.pets === "number" && typeof v.bedding === "number";
+}
 
 function isRequestInputShape(value: unknown): value is BookingRequestInput {
   if (!value || typeof value !== "object") return false;
@@ -15,7 +22,8 @@ function isRequestInputShape(value: unknown): value is BookingRequestInput {
     typeof v.name === "string" &&
     typeof v.email === "string" &&
     typeof v.phone === "string" &&
-    (v.message === undefined || typeof v.message === "string")
+    (v.message === undefined || typeof v.message === "string") &&
+    (v.extras === undefined || isExtrasShape(v.extras))
   );
 }
 
@@ -33,7 +41,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const booking = await requestBooking({ ...body, message: body.message ?? "" });
+    const booking = await requestBooking({
+      ...body,
+      message: body.message ?? "",
+      extras: body.extras ?? DEFAULT_EXTRAS,
+    });
     return NextResponse.json({ booking }, { status: 201 });
   } catch (err) {
     if (err instanceof BookingValidationError) {
