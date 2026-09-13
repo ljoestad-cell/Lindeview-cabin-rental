@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
   let correct: boolean;
   try {
-    correct = isCorrectPassword(password);
+    correct = await isCorrectPassword(password);
   } catch (err) {
     console.error("[api/admin/session]", err);
     return NextResponse.json(

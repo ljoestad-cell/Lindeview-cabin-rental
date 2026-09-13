@@ -67,24 +67,13 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
     }
   }
 
-  async function logout() {
-    await fetch("/api/admin/session", { method: "DELETE" });
-    router.replace("/admin/login");
-    router.refresh();
-  }
-
   if (bookings.length === 0) {
-    return (
-      <div>
-        <TopBar onLogout={logout} />
-        <p className="mt-10 text-muted">Ingen bookingforespørsler ennå.</p>
-      </div>
-    );
+    return <p className="text-muted">Ingen bookingforespørsler ennå.</p>;
   }
 
   return (
     <div>
-      <TopBar onLogout={logout} />
+      <p className="text-sm text-muted">Klikk Bekreft eller Avslå for å behandle en forespørsel.</p>
       {error && <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       <div className="mt-6 space-y-4">
@@ -145,21 +134,6 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function TopBar({ onLogout }: { onLogout: () => void }) {
-  return (
-    <div className="flex items-center justify-between">
-      <p className="text-sm text-muted">Klikk Bekreft eller Avslå for å behandle en forespørsel.</p>
-      <button
-        type="button"
-        onClick={onLogout}
-        className="rounded-full border border-line px-4 py-2 text-sm font-medium text-brand transition-colors hover:bg-brand/5"
-      >
-        Logg ut
-      </button>
     </div>
   );
 }

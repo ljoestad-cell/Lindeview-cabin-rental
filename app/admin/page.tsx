@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { hasValidSession } from "@/lib/auth";
 import { listBlockedRanges, listForAdmin } from "@/lib/bookings";
 import AdminCalendar from "@/components/admin/AdminCalendar";
+import AdminHeader from "@/components/admin/AdminHeader";
 import BookingsTable from "@/components/admin/BookingsTable";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,10 @@ export default async function AdminPage() {
       <div className="mx-auto max-w-5xl">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-accent">Lindeview</p>
         <h1 className="mt-3 font-display text-3xl text-brand">Administrer bookinger</h1>
+
+        <div className="mt-8">
+          <AdminHeader />
+        </div>
 
         <section className="mt-10">
           <h2 className="font-display text-xl text-brand">Kalender</h2>

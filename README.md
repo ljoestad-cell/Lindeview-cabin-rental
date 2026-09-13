@@ -41,9 +41,20 @@ opphold.
 Legg til i `.env.local` lokalt, og i Vercel sine Environment Variables for
 produksjon:
 
-- `ADMIN_PASSWORD` — passordet du logger inn med på `/admin`.
+- `ADMIN_PASSWORD` — passordet du logger inn med på `/admin`. Fungerer alltid,
+  selv etter at du har byttet passord under «Min konto» — et fast
+  sikkerhetsnett siden det ikke finnes noen «glemt passord»-e-post.
 - `ADMIN_SESSION_SECRET` — en lang, tilfeldig streng (f.eks.
   `openssl rand -hex 32`), brukes til å signere innloggingscookien.
+
+### Min konto
+
+`/admin/account` lar deg endre navn og e-post, og bytte passord (krever
+gjeldende passord). Passordkrav: minst 10 tegn, minst 2 tall og minst 1
+spesialtegn. Det nye passordet lagres i tillegg til `ADMIN_PASSWORD` — begge
+fungerer for innlogging. Siden har også en plassholder for
+topartsverifisering (MFA) — ikke funksjonell ennå, men datamodellen
+(`mfaEnabled`/`mfaSecret`) er klar for det.
 
 ### E-postvarsel om nye forespørsler
 

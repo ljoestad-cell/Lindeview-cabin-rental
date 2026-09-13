@@ -87,6 +87,18 @@ export type BlockedRange = {
   createdAt: string;
 };
 
+/** Eierens admin-konto. Én konto – ingen flerbrukerstøtte. */
+export type AdminAccount = {
+  name: string;
+  email: string;
+  /** "saltHex:hashHex" (scrypt) – se lib/auth.ts. Tomt inntil eieren har satt et eget passord. */
+  passwordHash: string;
+  /** Reservert for fremtidig topartsverifisering – ikke i bruk ennå. */
+  mfaEnabled: boolean;
+  mfaSecret: string | null;
+  updatedAt: string;
+};
+
 /** Felter en gjest sender inn – resten fylles/regnes på serveren. */
 export type BookingRequestInput = {
   checkIn: string;

@@ -1,8 +1,13 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { getStore } from "@/lib/store";
 
 const COOKIE_NAME = "admin_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12 timer
+
+const MIN_PASSWORD_LENGTH = 10;
+const MIN_DIGITS = 2;
+const MIN_SPECIAL_CHARS = 1;
 
 function secret(): string {
   const value = process.env.ADMIN_SESSION_SECRET;
@@ -26,14 +31,70 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
-/** Sammenligner mot ADMIN_PASSWORD i konstant tid. */
-export function isCorrectPassword(candidate: string): boolean {
-  const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) {
-    throw new Error("ADMIN_PASSWORD mangler i miljøvariablene.");
-  }
-  return safeEqual(candidate, expected);
+// --- Passord: hashing og styrkekrav -------------------------------------
+
+/** "saltHex:hashHex" – scrypt, ingen ekstern avhengighet nødvendig. */
+export function hashPassword(password: string): string {
+  const salt = randomBytes(16);
+  const derived = scryptSync(password, salt, 64);
+  return `${salt.toString("hex")}:${derived.toString("hex")}`;
 }
+
+function verifyPasswordHash(password: string, stored: string): boolean {
+  const [saltHex, hashHex] = stored.split(":");
+  if (!saltHex || !hashHex) return false;
+  try {
+    const salt = Buffer.from(saltHex, "hex");
+    const expected = Buffer.from(hashHex, "hex");
+    const actual = scryptSync(password, salt, 64);
+    if (actual.length !== expected.length) return false;
+    return timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Krav: minst 10 tegn, minst 2 tall, minst 1 spesialtegn.
+ * Returnerer en feilmelding, eller null hvis passordet er godkjent.
+ */
+export function validatePasswordStrength(password: string): string | null {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Passordet må være minst ${MIN_PASSWORD_LENGTH} tegn.`;
+  }
+  const digitCount = (password.match(/\d/g) ?? []).length;
+  if (digitCount < MIN_DIGITS) {
+    return `Passordet må inneholde minst ${MIN_DIGITS} tall.`;
+  }
+  const specialCount = (password.match(/[^A-Za-z0-9]/g) ?? []).length;
+  if (specialCount < MIN_SPECIAL_CHARS) {
+    return `Passordet må inneholde minst ${MIN_SPECIAL_CHARS} spesialtegn.`;
+  }
+  return null;
+}
+
+/**
+ * Sjekker passordet mot den lagrede admin-kontoen (lib/admin-account.ts),
+ * med ADMIN_PASSWORD som en evig gyldig reserveinngang – én eier, ingen
+ * "glemt passord"-e-post, så en fast miljøvariabel er sikkerhetsnettet
+ * hvis det egendefinerte passordet glemmes.
+ */
+export async function isCorrectPassword(candidate: string): Promise<boolean> {
+  const account = await getStore().getAdminAccount();
+  if (account?.passwordHash && verifyPasswordHash(candidate, account.passwordHash)) {
+    return true;
+  }
+
+  const envPassword = process.env.ADMIN_PASSWORD;
+  if (envPassword && safeEqual(candidate, envPassword)) return true;
+
+  if (!account?.passwordHash && !envPassword) {
+    throw new Error("Verken ADMIN_PASSWORD eller en admin-konto er satt opp.");
+  }
+  return false;
+}
+
+// --- Sesjon --------------------------------------------------------------
 
 /** Setter en signert, httpOnly sesjonscookie. Kalles etter riktig passord. */
 export async function createSession(): Promise<void> {

@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { Redis } from "@upstash/redis";
-import type { BlockedRange, Booking } from "@/lib/types";
+import type { AdminAccount, BlockedRange, Booking } from "@/lib/types";
 
 export interface BookingStore {
   listBookings(): Promise<Booking[]>;
@@ -13,10 +13,15 @@ export interface BookingStore {
   listBlockedRanges(): Promise<BlockedRange[]>;
   createBlockedRange(range: BlockedRange): Promise<BlockedRange>;
   deleteBlockedRange(id: string): Promise<void>;
+
+  /** Singleton – én eier, ingen flerbrukerstøtte. */
+  getAdminAccount(): Promise<AdminAccount | null>;
+  setAdminAccount(account: AdminAccount): Promise<AdminAccount>;
 }
 
 const REDIS_BOOKINGS_KEY = "lindeview:bookings";
 const REDIS_BLOCKED_KEY = "lindeview:blocked";
+const REDIS_ADMIN_ACCOUNT_KEY = "lindeview:admin-account";
 
 /**
  * Produksjonslager: Upstash Redis (Vercel KV). Alle bookinger/blokkeringer
@@ -77,6 +82,15 @@ class RedisStore implements BookingStore {
   async deleteBlockedRange(id: string): Promise<void> {
     await this.redis.hdel(REDIS_BLOCKED_KEY, id);
   }
+
+  async getAdminAccount(): Promise<AdminAccount | null> {
+    return (await this.redis.get<AdminAccount>(REDIS_ADMIN_ACCOUNT_KEY)) ?? null;
+  }
+
+  async setAdminAccount(account: AdminAccount): Promise<AdminAccount> {
+    await this.redis.set(REDIS_ADMIN_ACCOUNT_KEY, account);
+    return account;
+  }
 }
 
 /**
@@ -87,6 +101,7 @@ class RedisStore implements BookingStore {
 class FileStore implements BookingStore {
   private bookingsPath = path.join(process.cwd(), ".data", "bookings.json");
   private blockedPath = path.join(process.cwd(), ".data", "blocked.json");
+  private adminAccountPath = path.join(process.cwd(), ".data", "admin-account.json");
 
   private async readAll<T>(filePath: string): Promise<Record<string, T>> {
     try {
@@ -150,6 +165,22 @@ class FileStore implements BookingStore {
     const map = await this.readAll<BlockedRange>(this.blockedPath);
     delete map[id];
     await this.writeAll(this.blockedPath, map);
+  }
+
+  async getAdminAccount(): Promise<AdminAccount | null> {
+    try {
+      const raw = await fs.readFile(this.adminAccountPath, "utf-8");
+      return JSON.parse(raw) as AdminAccount;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw err;
+    }
+  }
+
+  async setAdminAccount(account: AdminAccount): Promise<AdminAccount> {
+    await fs.mkdir(path.dirname(this.adminAccountPath), { recursive: true });
+    await fs.writeFile(this.adminAccountPath, JSON.stringify(account, null, 2), "utf-8");
+    return account;
   }
 }
 
