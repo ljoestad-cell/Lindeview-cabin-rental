@@ -2,12 +2,25 @@ export default function Footer() {
   return (
     <footer className="bg-brand py-14">
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 sm:flex-row sm:items-start sm:justify-between sm:px-10">
-        <div>
-          <p className="font-display text-2xl text-white">Lindeview</p>
-          <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/60">
-            Eksklusiv villmarkshytte på Hillestadheia — stillhet, natur og høy
-            standard, samlet på ett sted.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div>
+            <p className="font-display text-2xl text-white">Lindeview</p>
+            <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/60">
+              Eksklusiv villmarkshytte på Hillestadheia — stillhet, natur og høy
+              standard, samlet på ett sted.
+            </p>
+          </div>
+          <div className="h-28 w-40 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/15">
+            <iframe
+              src="https://www.google.com/maps?q=Hillestadheia&output=embed"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Kart over Hillestadheia"
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1 text-sm text-white/70">
