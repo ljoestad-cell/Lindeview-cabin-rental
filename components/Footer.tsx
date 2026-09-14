@@ -12,7 +12,7 @@ export default function Footer() {
           </div>
           <div className="h-56 w-80 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/15">
             <iframe
-              src="https://www.google.com/maps?q=Lindeknuten&z=15&output=embed"
+              src="https://www.google.com/maps?q=Lindeknuten&z=14&t=k&output=embed"
               width="100%"
               height="100%"
               style={{ border: 0 }}
