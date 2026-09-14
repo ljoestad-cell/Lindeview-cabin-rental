@@ -10,15 +10,15 @@ export default function Footer() {
               standard, samlet på ett sted.
             </p>
           </div>
-          <div className="h-28 w-40 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/15">
+          <div className="h-56 w-80 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/15">
             <iframe
-              src="https://www.google.com/maps?q=Hillestadheia&output=embed"
+              src="https://www.google.com/maps?q=Kringeltj%C3%B8nn%2C+D%C3%B8lemo&output=embed"
               width="100%"
               height="100%"
               style={{ border: 0 }}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
-              title="Kart over Hillestadheia"
+              title="Kart over Kringeltjønn, Dølemo"
             />
           </div>
         </div>
