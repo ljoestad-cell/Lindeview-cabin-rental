@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BedDouble, Bath, Users, Fish, EvCharger, ChefHat, Laptop, Flame, Router } from "lucide-react";
+import { BedDouble, Bath, Users, Fish, EvCharger, ChefHat, Laptop, Flame, Router, Kayak } from "lucide-react";
 
 const stats = [
   { icon: Users, label: "10 gjester" },
@@ -12,6 +12,7 @@ const stats = [
   { icon: Laptop, label: "Kontorplass" },
   { icon: Flame, label: "Gassgrill" },
   { icon: Router, label: "Fiber internett" },
+  { icon: Kayak, label: "2 x kajakk inkludert" },
 ];
 
 export default function Hero() {
