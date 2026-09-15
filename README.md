@@ -33,8 +33,32 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 Nettsiden har en bookingflyt (`/book`) og et admin-panel (`/admin`) for å
 godkjenne/avslå forespørsler. Faste regler ligger i
-[lib/config.ts](lib/config.ts) — pris, rengjøringsgebyr, sesong og minimum
-opphold.
+[lib/config.ts](lib/config.ts) — pris, rengjøringsgebyr, sesong, minimum
+opphold og prisen på tilleggene under.
+
+### Tillegg som påvirker prisen
+
+Gjesten velger antall (0 = ikke valgt) for tre tillegg på `/book`, fast pris
+pr. booking (ikke pr. natt):
+
+| Tillegg | Maks antall | Pris |
+|---|---|---|
+| Lading av el-bil | 4 | 60 EUR pr. bil |
+| Kjæledyr | 4 | 60 EUR pr. dyr |
+| Sengetøy & håndklær | 10 | 25 EUR pr. sett |
+
+Bookingsiden viser også tydelig at hytta kun leies ut til familier, ikke
+voksne grupper, firmaer eller arrangementer
+([lib/config.ts](lib/config.ts): `FAMILY_ONLY_NOTICE`).
+
+### Admin-kalender og datoblokkering
+
+`/admin` har en kalender som viser bekreftede bookinger, ubehandlede
+forespørsler og manuelt blokkerte perioder i én oversikt
+([components/admin/AdminCalendar.tsx](components/admin/AdminCalendar.tsx)).
+Eieren kan velge en ledig periode og blokkere den (eget bruk, vedlikehold
+o.l.) med en valgfri årsak — blokkerte datoer telles automatisk med i
+tilgjengeligheten på `/book`, så gjester ikke kan sende forespørsel for dem.
 
 ### Nå — må settes for at admin skal virke
 
@@ -136,6 +160,21 @@ på nytt).
    depositum → tilleggsbeløp) kan kjøres uten ekte penger. Bytt til
    live-nøkler (`sk_live_...`) og et nytt live-webhook-endepunkt når dere er
    klare for skarpe betalinger.
+
+### Tillitssignaler for internasjonale gjester
+
+Målgruppen booker langt unna eieren, så flere ting er lagt til for å bygge
+tillit til at eieren er en reell person og hytta faktisk finnes:
+
+- Ekte navn og mobilnummer i [Footer.tsx](components/Footer.tsx) (ikke
+  placeholder-tekst — hold denne oppdatert hvis kontaktinfo endres).
+- Et lite, innebygd Google Maps-kart i footeren (Lindeknuten,
+  satellittvisning). Ingen API-nøkkel kreves for dette enkle embedet, men det
+  har heller ingen målestokklinje å kalibrere zoom-nivå eksakt mot.
+- Lenke til Airbnb-oppføringen i [Testimonials.tsx](components/Testimonials.tsx)
+  — uavhengige, verifiserbare omtaler er et sterkt tillitssignal.
+- «Sikker betaling via Stripe»-merke i
+  [PaymentNotice.tsx](components/booking/PaymentNotice.tsx).
 
 ## Deploy on Vercel
 
