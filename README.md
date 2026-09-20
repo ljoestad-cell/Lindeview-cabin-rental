@@ -72,11 +72,16 @@ datoer bookes to steder. Under «Kalendersynkronisering» på `/admin/account`:
    `icalExportToken` på admin-kontoen) i stedet for passordbeskyttet, siden
    Airbnb henter den uten innlogging — del den ikke offentlig.
 2. **Airbnb → Lindeview**: lim inn Airbnbs egen eksport-URL (samme sted i
-   Airbnb, «Eksporter kalender») i feltet under. Sjekkes automatisk én gang
-   daglig (Vercel Cron, se [vercel.json](vercel.json):
-   `/api/cron/calendar-sync`) og vises som blokkerte datoer i
-   admin-kalenderen, tydelig merket som «Airbnb-reservasjon» og uten
-   mulighet for å fjerne dem manuelt (de erstattes ved neste synk).
+   Airbnb, «Eksporter kalender») i feltet under. Sjekkes automatisk hver time
+   (Vercel Cron, se [vercel.json](vercel.json): `/api/cron/calendar-sync`) og
+   vises som blokkerte datoer i admin-kalenderen, tydelig merket som
+   «Airbnb-reservasjon» og uten mulighet for å fjerne dem manuelt (de
+   erstattes ved neste synk).
+
+   **Krever Vercel Pro** — cron-jobber hyppigere enn én gang i døgnet er ikke
+   tillatt på Hobby-planen, og deployen vil feile med en tydelig feilmelding
+   hvis dere er på Hobby. Sett `schedule` i [vercel.json](vercel.json)
+   tilbake til f.eks. `"0 5 * * *"` (én gang daglig) hvis det skjer.
 
 Hvis en periode fra Airbnb overlapper med en allerede bekreftet booking her
 (en reell dobbeltbooking), varsles eieren automatisk på e-post (krever at

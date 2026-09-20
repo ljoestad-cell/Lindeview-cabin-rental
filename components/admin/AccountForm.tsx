@@ -284,8 +284,7 @@ function CalendarSyncSection({
         <label className="block">
           <span className="text-sm font-medium text-foreground">2. Airbnb → Lindeviews kalender</span>
           <p className="mt-1 text-sm text-muted">
-            Lim inn Airbnbs eksport-URL herfra (samme sted, «Eksporter kalender»). Sjekkes automatisk én gang
-            daglig.
+            Lim inn Airbnbs eksport-URL herfra (samme sted, «Eksporter kalender»). Sjekkes automatisk hver time.
           </p>
           <input
             type="url"
