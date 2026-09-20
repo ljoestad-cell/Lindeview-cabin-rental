@@ -215,6 +215,10 @@ function CalendarSyncSection({
   const [syncEnabled, setSyncEnabled] = useState(initialAirbnbSyncEnabled);
   const [toggleBusy, setToggleBusy] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
+  const [syncedAt, setSyncedAt] = useState(airbnbIcalSyncedAt);
+  const [syncNowBusy, setSyncNowBusy] = useState(false);
+  const [syncNowError, setSyncNowError] = useState<string | null>(null);
+  const [syncNowResult, setSyncNowResult] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -239,6 +243,26 @@ function CalendarSyncSection({
       setToggleError("Kunne ikke kontakte serveren.");
     } finally {
       setToggleBusy(false);
+    }
+  }
+
+  async function syncNow() {
+    setSyncNowBusy(true);
+    setSyncNowError(null);
+    setSyncNowResult(null);
+    try {
+      const res = await fetch("/api/admin/account/airbnb-sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setSyncNowError(data.error ?? "Synkronisering feilet.");
+        return;
+      }
+      setSyncNowResult(data.imported);
+      setSyncedAt(data.account.airbnbIcalSyncedAt);
+    } catch {
+      setSyncNowError("Kunne ikke kontakte serveren.");
+    } finally {
+      setSyncNowBusy(false);
     }
   }
 
@@ -287,21 +311,38 @@ function CalendarSyncSection({
             at de samme datoene ikke kan bookes to steder.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={toggleSync}
-          disabled={toggleBusy}
-          aria-pressed={syncEnabled}
-          className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            syncEnabled
-              ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-              : "bg-muted/20 text-muted hover:bg-muted/30"
-          }`}
-        >
-          {toggleBusy ? "..." : syncEnabled ? "Synkronisering: På" : "Synkronisering: Av"}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSync}
+            disabled={toggleBusy}
+            aria-pressed={syncEnabled}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              syncEnabled
+                ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                : "bg-muted/20 text-muted hover:bg-muted/30"
+            }`}
+          >
+            {toggleBusy ? "..." : syncEnabled ? "Synkronisering: På" : "Synkronisering: Av"}
+          </button>
+          <button
+            type="button"
+            onClick={syncNow}
+            disabled={syncNowBusy || !syncEnabled || !airbnbUrl}
+            title={!syncEnabled ? "Skru på synkronisering for å synkronisere nå" : undefined}
+            className="rounded-full border border-line px-4 py-1.5 text-sm font-semibold text-brand transition-colors hover:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {syncNowBusy ? "Synkroniserer..." : "Synkroniser nå"}
+          </button>
+        </div>
       </div>
       {toggleError && <p className="mt-2 text-sm text-red-700">{toggleError}</p>}
+      {syncNowError && <p className="mt-2 text-sm text-red-700">{syncNowError}</p>}
+      {syncNowResult !== null && (
+        <p className="mt-2 text-sm text-emerald-700">
+          Synkronisert – {syncNowResult} {syncNowResult === 1 ? "periode" : "perioder"} hentet fra Airbnb.
+        </p>
+      )}
       {!syncEnabled && (
         <p className="mt-2 text-xs text-muted">
           Synkroniseringen er satt på pause – Airbnb-URL-en er fremdeles lagret, men hentes ikke inn før du skrur den
@@ -350,8 +391,8 @@ function CalendarSyncSection({
         {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
         {saved && <p className="mt-3 text-sm text-emerald-700">Lagret.</p>}
         <p className="mt-2 text-xs text-muted">
-          {airbnbIcalSyncedAt
-            ? `Sist synkronisert: ${new Date(airbnbIcalSyncedAt).toLocaleString("no-NO")}`
+          {syncedAt
+            ? `Sist synkronisert: ${new Date(syncedAt).toLocaleString("no-NO")}`
             : "Ikke synkronisert ennå."}
         </p>
         <button

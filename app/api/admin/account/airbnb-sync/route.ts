@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { updateAirbnbSyncEnabled } from "@/lib/admin-account";
+import { getAccount, updateAirbnbSyncEnabled } from "@/lib/admin-account";
 import { hasValidSession } from "@/lib/auth";
+import { syncAirbnbCalendar } from "@/lib/bookings";
 
 export const dynamic = "force-dynamic";
 
@@ -24,4 +25,22 @@ export async function PATCH(request: NextRequest) {
 
   const account = await updateAirbnbSyncEnabled(enabled);
   return NextResponse.json({ account });
+}
+
+/** Admin: tving en umiddelbar Airbnb → Lindeview-synk, i stedet for å vente på timesjobben. */
+export async function POST() {
+  if (!(await hasValidSession())) {
+    return NextResponse.json({ error: "Ikke innlogget." }, { status: 401 });
+  }
+
+  try {
+    const result = await syncAirbnbCalendar();
+    const account = await getAccount();
+    return NextResponse.json({ ...result, account });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Synkronisering feilet." },
+      { status: 500 },
+    );
+  }
 }
