@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import Image from "next/image";
 
 const photos = [
@@ -100,6 +101,24 @@ export default function Gallery() {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activePhoto = activeIndex !== null ? photos[activeIndex] : null;
 
+  useEffect(() => {
+    if (activeIndex === null) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setActiveIndex(null);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+
+    // Hindre bakgrunnen fra å scrolle mens lightboxen er åpen (viktig på mobil).
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [activeIndex]);
+
   return (
     <section id="galleri" className="bg-surface py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 sm:px-10">
@@ -140,10 +159,21 @@ export default function Gallery() {
       </div>
 
       {activePhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 sm:p-12">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 sm:p-12"
+          onClick={() => setActiveIndex(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setActiveIndex(null)}
+            aria-label="Lukk bilde"
+            className="fixed right-4 top-4 rounded-full bg-black/40 p-2.5 text-white transition-colors hover:bg-black/60 sm:right-8 sm:top-8"
+          >
+            <X className="h-6 w-6" />
+          </button>
           <div
             className="relative aspect-[4/3] w-full max-w-4xl"
-            onMouseLeave={() => setActiveIndex(null)}
+            onClick={(e) => e.stopPropagation()}
           >
             <Image
               src={activePhoto.src}
