@@ -15,6 +15,7 @@ function defaultAccount(): AdminAccount {
     mfaSecret: null,
     icalExportToken: randomUUID(),
     airbnbIcalUrl: null,
+    airbnbSyncEnabled: true,
     airbnbIcalSyncedAt: null,
     updatedAt: new Date().toISOString(),
   };
@@ -34,6 +35,7 @@ async function loadAccount(): Promise<AdminAccount> {
     ...base,
     icalExportToken: base.icalExportToken || randomUUID(),
     airbnbIcalUrl: base.airbnbIcalUrl ?? null,
+    airbnbSyncEnabled: base.airbnbSyncEnabled ?? true,
     airbnbIcalSyncedAt: base.airbnbIcalSyncedAt ?? null,
   };
   if (!existing || needsToken) {
@@ -46,9 +48,28 @@ async function loadAccount(): Promise<AdminAccount> {
 export type PublicAdminAccount = Omit<AdminAccount, "passwordHash">;
 
 function toPublic(account: AdminAccount): PublicAdminAccount {
-  const { name, email, mfaEnabled, mfaSecret, icalExportToken, airbnbIcalUrl, airbnbIcalSyncedAt, updatedAt } =
-    account;
-  return { name, email, mfaEnabled, mfaSecret, icalExportToken, airbnbIcalUrl, airbnbIcalSyncedAt, updatedAt };
+  const {
+    name,
+    email,
+    mfaEnabled,
+    mfaSecret,
+    icalExportToken,
+    airbnbIcalUrl,
+    airbnbSyncEnabled,
+    airbnbIcalSyncedAt,
+    updatedAt,
+  } = account;
+  return {
+    name,
+    email,
+    mfaEnabled,
+    mfaSecret,
+    icalExportToken,
+    airbnbIcalUrl,
+    airbnbSyncEnabled,
+    airbnbIcalSyncedAt,
+    updatedAt,
+  };
 }
 
 export async function getAccount(): Promise<PublicAdminAccount> {
@@ -109,6 +130,14 @@ export async function updateAirbnbIcalUrl(url: string): Promise<PublicAdminAccou
     airbnbIcalUrl: trimmed || null,
     updatedAt: new Date().toISOString(),
   };
+  await getStore().setAdminAccount(updated);
+  return toPublic(updated);
+}
+
+/** Av/på-bryter for Airbnb-synken i «Min konto» – lar eieren pause den uten å slette den lagrede URL-en. */
+export async function updateAirbnbSyncEnabled(enabled: boolean): Promise<PublicAdminAccount> {
+  const existing = await loadAccount();
+  const updated: AdminAccount = { ...existing, airbnbSyncEnabled: enabled, updatedAt: new Date().toISOString() };
   await getStore().setAdminAccount(updated);
   return toPublic(updated);
 }

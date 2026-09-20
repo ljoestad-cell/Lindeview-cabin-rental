@@ -103,6 +103,8 @@ export type AdminAccount = {
   icalExportToken: string;
   /** Airbnb sin iCal-eksport-URL, limt inn av eieren i «Min konto» – brukes til å importere Airbnb-reservasjoner som blokkeringer. */
   airbnbIcalUrl: string | null;
+  /** Av/på-bryter, uavhengig av airbnbIcalUrl – lar eieren pause synken uten å miste den lagrede URL-en. */
+  airbnbSyncEnabled: boolean;
   /** Tidspunkt for siste vellykkede synk mot airbnbIcalUrl, vist i admin-UI som en enkel helsesjekk. */
   airbnbIcalSyncedAt: string | null;
   updatedAt: string;

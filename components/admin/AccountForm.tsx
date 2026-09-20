@@ -14,6 +14,7 @@ export default function AccountForm({ initialAccount }: { initialAccount: Public
       <CalendarSyncSection
         icalExportToken={initialAccount.icalExportToken}
         initialAirbnbIcalUrl={initialAccount.airbnbIcalUrl}
+        initialAirbnbSyncEnabled={initialAccount.airbnbSyncEnabled}
         airbnbIcalSyncedAt={initialAccount.airbnbIcalSyncedAt}
       />
       <MfaSection enabled={initialAccount.mfaEnabled} />
@@ -199,19 +200,47 @@ function getOriginServerSnapshot(): string | null {
 function CalendarSyncSection({
   icalExportToken,
   initialAirbnbIcalUrl,
+  initialAirbnbSyncEnabled,
   airbnbIcalSyncedAt,
 }: {
   icalExportToken: string;
   initialAirbnbIcalUrl: string | null;
+  initialAirbnbSyncEnabled: boolean;
   airbnbIcalSyncedAt: string | null;
 }) {
   const origin = useSyncExternalStore(noopSubscribe, getOriginSnapshot, getOriginServerSnapshot);
   const exportUrl = origin ? `${origin}/api/ical/${icalExportToken}` : null;
   const [copied, setCopied] = useState(false);
   const [airbnbUrl, setAirbnbUrl] = useState(initialAirbnbIcalUrl ?? "");
+  const [syncEnabled, setSyncEnabled] = useState(initialAirbnbSyncEnabled);
+  const [toggleBusy, setToggleBusy] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  async function toggleSync() {
+    const next = !syncEnabled;
+    setToggleBusy(true);
+    setToggleError(null);
+    try {
+      const res = await fetch("/api/admin/account/airbnb-sync", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setToggleError(data.error ?? "Kunne ikke oppdatere.");
+        return;
+      }
+      setSyncEnabled(next);
+    } catch {
+      setToggleError("Kunne ikke kontakte serveren.");
+    } finally {
+      setToggleBusy(false);
+    }
+  }
 
   async function copyExportUrl() {
     if (!exportUrl) return;
@@ -250,11 +279,35 @@ function CalendarSyncSection({
 
   return (
     <section className="rounded-2xl bg-surface p-6 ring-1 ring-line">
-      <h2 className="font-display text-lg text-brand">Kalendersynkronisering (Airbnb)</h2>
-      <p className="mt-1 text-sm text-muted">
-        Hytta leies også ut via Airbnb – disse to lenkene holder kalenderne synkronisert i begge retninger, slik at
-        de samme datoene ikke kan bookes to steder.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-lg text-brand">Kalendersynkronisering (Airbnb)</h2>
+          <p className="mt-1 text-sm text-muted">
+            Hytta leies også ut via Airbnb – disse to lenkene holder kalenderne synkronisert i begge retninger, slik
+            at de samme datoene ikke kan bookes to steder.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={toggleSync}
+          disabled={toggleBusy}
+          aria-pressed={syncEnabled}
+          className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            syncEnabled
+              ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+              : "bg-muted/20 text-muted hover:bg-muted/30"
+          }`}
+        >
+          {toggleBusy ? "..." : syncEnabled ? "Synkronisering: På" : "Synkronisering: Av"}
+        </button>
+      </div>
+      {toggleError && <p className="mt-2 text-sm text-red-700">{toggleError}</p>}
+      {!syncEnabled && (
+        <p className="mt-2 text-xs text-muted">
+          Synkroniseringen er satt på pause – Airbnb-URL-en er fremdeles lagret, men hentes ikke inn før du skrur den
+          på igjen.
+        </p>
+      )}
 
       <div className="mt-5">
         <p className="text-sm font-medium text-foreground">1. Lindeviews kalender → Airbnb</p>

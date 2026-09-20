@@ -522,7 +522,8 @@ export async function runDueCharges(): Promise<{ charged: string[]; deposits: st
  * iCal-eksport (URL-en eieren har limt inn i «Min konto») og speiler
  * reservasjonene som blokkeringer med source "airbnb", slik at de telles med
  * i getAvailability() akkurat som manuelle blokkeringer. No-op hvis eieren
- * ikke har satt opp en Airbnb-URL ennå.
+ * ikke har satt opp en Airbnb-URL ennå, eller har satt synken på pause
+ * (airbnbSyncEnabled) i «Min konto».
  *
  * Full erstatning ved hver kjøring (slett alle gamle "airbnb"-blokkeringer,
  * opprett nye fra feeden) i stedet for diffing – trygt på dette volumet og
@@ -530,7 +531,7 @@ export async function runDueCharges(): Promise<{ charged: string[]; deposits: st
  */
 export async function syncAirbnbCalendar(): Promise<{ imported: number }> {
   const account = await getAccount();
-  if (!account.airbnbIcalUrl) return { imported: 0 };
+  if (!account.airbnbIcalUrl || !account.airbnbSyncEnabled) return { imported: 0 };
 
   const res = await fetch(account.airbnbIcalUrl, { cache: "no-store" });
   if (!res.ok) throw new Error(`Airbnb iCal svarte ${res.status}`);
