@@ -9,8 +9,8 @@ export const PROPERTY_NAME = "Lindeview";
 export const LOCATION_LABEL = "Hillestadheia";
 /** Søketekst brukt i det innebygde Google Maps-kartet i footeren. */
 export const MAP_QUERY = "Lindeknuten";
-export const AIRBNB_URL =
-  "https://www.airbnb.no/rooms/942451723603454434?check_in=2027-06-07&check_out=2027-06-14&search_mode=regular_search&source_impression_id=p3_2bf6ca12-64c2-479b-9cb4-fff11ce2dbc8_6504dc59-f263-45c0-90b5-277658082ca4_0_942451723603454434_0&previous_page_section_name=1000&federated_search_id=2bf6ca12-64c2-479b-9cb4-fff11ce2dbc8";
+/** Kort, stabil lenke til oppføringen — Airbnb sine søke-/sesjonsparametre (check_in, source_impression_id o.l.) er ikke nødvendige for at lenken skal virke. */
+export const AIRBNB_URL = "https://www.airbnb.no/rooms/942451723603454434";
 
 export const OWNER_NAME = "Morten Ljøstad";
 /** Mottar e-postvarsel om nye bookingforespørsler og betalingsproblemer. */
