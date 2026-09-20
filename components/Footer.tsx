@@ -2,7 +2,7 @@ export default function Footer() {
   return (
     <footer className="bg-brand py-14">
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 sm:flex-row sm:items-start sm:justify-between sm:px-10">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div>
             <p className="font-display text-2xl text-white">Lindeview</p>
             <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/60">

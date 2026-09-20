@@ -27,10 +27,10 @@ const activities = [
   },
   {
     icon: Mountain,
-    title: "Klatring",
+    title: "ViaFerrata",
     text: "Bratte svaberg og utsiktspunkter for deg som vil litt høyere opp.",
-    image: "/images/galleri/east-view-no-sheep.png",
-    alt: "Svaberg og utsiktspunkt i terrenget rundt Lindeview",
+    image: "/images/galleri/viaferrata.jpeg",
+    alt: "Utsikt fra klippekanten på via ferrata-ruta, ned mot dalen og vannet",
   },
   {
     icon: Wind,

@@ -46,6 +46,51 @@ const photos = [
     alt: "Fjelltjern nær hytta, godt egnet for fiske",
     className: "",
   },
+  {
+    src: "/images/galleri/east-view-no-sheep.png",
+    alt: "Svaberg og utsiktspunkt i terrenget rundt Lindeview",
+    className: "",
+  },
+  {
+    src: "/images/galleri/main-bathroom.avif",
+    alt: "Hovedbad på Lindeview",
+    className: "",
+  },
+  {
+    src: "/images/galleri/loft-living-room.jpeg",
+    alt: "Loftsstue med sofa og TV",
+    className: "",
+  },
+  {
+    src: "/images/galleri/dansk.jpeg",
+    alt: "Fjelltjern omgitt av furuskog i nærheten av Lindeview",
+    className: "",
+  },
+  {
+    src: "/images/galleri/hall-2.jpeg",
+    alt: "Hall med trapp og inngangsparti",
+    className: "",
+  },
+  {
+    src: "/images/galleri/living-room-gable.jpeg",
+    alt: "Stue med peisovn og gavlvegg",
+    className: "",
+  },
+  {
+    src: "/images/galleri/bedroom-2.jpeg",
+    alt: "Soverom 2 med skrivebord ved vinduet",
+    className: "",
+  },
+  {
+    src: "/images/galleri/bedroom-3.avif",
+    alt: "Soverom 3 på Lindeview",
+    className: "",
+  },
+  {
+    src: "/images/galleri/bedroom-4.jpeg",
+    alt: "Soverom 4 på hemsen",
+    className: "",
+  },
 ];
 
 export default function Gallery() {
