@@ -1,5 +1,3 @@
-import Image from "next/image";
-
 export default function Footer() {
   return (
     <footer className="bg-brand py-14">
@@ -12,13 +10,15 @@ export default function Footer() {
               standard, samlet på ett sted.
             </p>
           </div>
-          <div className="relative h-56 w-80 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/15">
-            <Image
-              src="/images/galleri/gress.jpeg"
-              alt="Utsikt fra Lindeview"
-              fill
-              className="object-cover"
-              sizes="320px"
+          <div className="h-56 w-80 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/15">
+            <iframe
+              src="https://www.google.com/maps?q=Lindeknuten&z=14&t=k&output=embed"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Kart over Lindeknuten"
             />
           </div>
         </div>

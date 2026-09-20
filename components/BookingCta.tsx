@@ -7,8 +7,8 @@ export default function BookingCta() {
   return (
     <section id="bestill" className="relative overflow-hidden bg-brand-dark py-24 sm:py-32">
       <Image
-        src="/images/galleri/winter-night-cabin.jpeg"
-        alt="Lindeview opplyst en vinterkveld"
+        src="/images/galleri/gress.jpeg"
+        alt="Gress i solnedgang ved Lindeview"
         fill
         className="object-cover opacity-25"
         sizes="100vw"
