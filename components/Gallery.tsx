@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 
 const photos = [
@@ -24,7 +27,7 @@ const photos = [
   {
     src: "/images/galleri/cabin-northern-lights.jpeg",
     alt: "Lindeview en vinternatt under nordlys og stjernehimmel",
-    className: "",
+    className: "sm:col-span-2",
   },
   {
     src: "/images/galleri/kayak-lake.jpeg",
@@ -44,7 +47,7 @@ const photos = [
   {
     src: "/images/galleri/stemtjonn.jpeg",
     alt: "Fjelltjern nær hytta, godt egnet for fiske",
-    className: "",
+    className: "sm:row-span-2",
   },
   {
     src: "/images/galleri/east-view-no-sheep.png",
@@ -59,7 +62,7 @@ const photos = [
   {
     src: "/images/galleri/loft-living-room.jpeg",
     alt: "Loftsstue med sofa og TV",
-    className: "",
+    className: "sm:col-span-2 sm:row-span-2",
   },
   {
     src: "/images/galleri/dansk.jpeg",
@@ -74,7 +77,7 @@ const photos = [
   {
     src: "/images/galleri/living-room-gable.jpeg",
     alt: "Stue med peisovn og gavlvegg",
-    className: "",
+    className: "sm:col-span-2",
   },
   {
     src: "/images/galleri/bedroom-2.jpeg",
@@ -84,7 +87,7 @@ const photos = [
   {
     src: "/images/galleri/bedroom-3.avif",
     alt: "Soverom 3 på Lindeview",
-    className: "",
+    className: "sm:row-span-2",
   },
   {
     src: "/images/galleri/bedroom-4.jpeg",
@@ -94,6 +97,9 @@ const photos = [
 ];
 
 export default function Gallery() {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const activePhoto = activeIndex !== null ? photos[activeIndex] : null;
+
   return (
     <section id="galleri" className="bg-surface py-24 sm:py-32">
       <div className="mx-auto max-w-7xl px-6 sm:px-10">
@@ -113,10 +119,13 @@ export default function Gallery() {
         </div>
 
         <div className="mt-14 grid auto-rows-[220px] grid-cols-2 gap-4 sm:grid-cols-4">
-          {photos.map((photo) => (
-            <div
+          {photos.map((photo, index) => (
+            <button
               key={photo.src}
-              className={`relative overflow-hidden rounded-xl ${photo.className}`}
+              type="button"
+              onClick={() => setActiveIndex(index)}
+              aria-label={`Vis ${photo.alt} i stort format`}
+              className={`relative cursor-zoom-in overflow-hidden rounded-xl ${photo.className}`}
             >
               <Image
                 src={photo.src}
@@ -125,10 +134,27 @@ export default function Gallery() {
                 className="object-cover transition-transform duration-500 hover:scale-105"
                 sizes="(min-width: 640px) 25vw, 50vw"
               />
-            </div>
+            </button>
           ))}
         </div>
       </div>
+
+      {activePhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6 sm:p-12">
+          <div
+            className="relative aspect-[4/3] w-full max-w-4xl"
+            onMouseLeave={() => setActiveIndex(null)}
+          >
+            <Image
+              src={activePhoto.src}
+              alt={activePhoto.alt}
+              fill
+              className="rounded-xl object-contain"
+              sizes="90vw"
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }
