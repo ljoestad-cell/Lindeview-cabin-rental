@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getAccount, recordAirbnbSync } from "@/lib/admin-account";
 import * as calendar from "@/lib/calendar";
 import {
   BEDDING_MAX,
@@ -11,7 +12,8 @@ import {
   SEASON_START,
 } from "@/lib/config";
 import { addDays, isIsoDate, isWithinSeason, nightsBetween, rangesOverlap, today } from "@/lib/dates";
-import { notifyOwnerOfBooking, notifyOwnerOfPaymentIssue } from "@/lib/notifications";
+import { parseIcsBusyRanges } from "@/lib/ical";
+import { notifyOwnerOfBooking, notifyOwnerOfDoubleBooking, notifyOwnerOfPaymentIssue } from "@/lib/notifications";
 import * as payments from "@/lib/payments";
 import { isStripeConfigured } from "@/lib/stripe";
 import { DEFAULT_EXTRAS, quote, type BookingExtras } from "@/lib/pricing";
@@ -511,4 +513,58 @@ export async function runDueCharges(): Promise<{ charged: string[]; deposits: st
   }
 
   return { charged, deposits };
+}
+
+// --- Airbnb-kalendersynk ------------------------------------------------
+
+/**
+ * Kjøres av cron-jobben (se app/api/cron/calendar-sync): henter Airbnb sin
+ * iCal-eksport (URL-en eieren har limt inn i «Min konto») og speiler
+ * reservasjonene som blokkeringer med source "airbnb", slik at de telles med
+ * i getAvailability() akkurat som manuelle blokkeringer. No-op hvis eieren
+ * ikke har satt opp en Airbnb-URL ennå.
+ *
+ * Full erstatning ved hver kjøring (slett alle gamle "airbnb"-blokkeringer,
+ * opprett nye fra feeden) i stedet for diffing – trygt på dette volumet og
+ * unngår at fjernede Airbnb-reservasjoner blir hengende igjen som blokkert.
+ */
+export async function syncAirbnbCalendar(): Promise<{ imported: number }> {
+  const account = await getAccount();
+  if (!account.airbnbIcalUrl) return { imported: 0 };
+
+  const res = await fetch(account.airbnbIcalUrl, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Airbnb iCal svarte ${res.status}`);
+  const ranges = parseIcsBusyRanges(await res.text());
+
+  const store = getStore();
+  const existingBlocks = await store.listBlockedRanges();
+  for (const block of existingBlocks) {
+    if (block.source === "airbnb") await store.deleteBlockedRange(block.id);
+  }
+
+  for (const range of ranges) {
+    await store.createBlockedRange({
+      id: randomUUID(),
+      start: range.start,
+      end: range.end,
+      reason: "Airbnb",
+      source: "airbnb",
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  const confirmed = (await loadAllBookings()).filter((b) => b.status === "confirmed");
+  const conflicts = ranges.filter((r) =>
+    confirmed.some((b) => rangesOverlap({ start: b.checkIn, end: b.checkOut }, r)),
+  );
+  if (conflicts.length > 0) {
+    try {
+      await notifyOwnerOfDoubleBooking(conflicts.map((c) => `${c.start} → ${c.end}`).join("\n"));
+    } catch (err) {
+      console.error("[bookings] Kunne ikke varsle om mulig dobbeltbooking:", err);
+    }
+  }
+
+  await recordAirbnbSync();
+  return { imported: ranges.length };
 }

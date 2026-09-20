@@ -1,4 +1,4 @@
-import { OWNER_EMAIL } from "@/lib/config";
+import { OWNER_EMAIL, PROPERTY_NAME } from "@/lib/property";
 import type { Booking } from "@/lib/types";
 
 /**
@@ -10,7 +10,8 @@ import type { Booking } from "@/lib/types";
  * Uten RESEND_API_KEY gjør funksjonene ingenting (logger og returnerer) –
  * bookingen lagres og vises i /admin uansett, akkurat som med kalender og
  * betaling. Koble til senere ved å opprette en konto på resend.com (helst
- * med ljoestad@gmail.com, se README) og sette miljøvariabelen.
+ * med samme adresse som OWNER_EMAIL i lib/property.ts, se README) og sette
+ * miljøvariabelen.
  */
 
 const RESEND_API = "https://api.resend.com/emails";
@@ -31,7 +32,7 @@ async function sendOwnerEmail(subject: string, text: string, replyTo?: string): 
     return;
   }
 
-  const from = process.env.RESEND_FROM_EMAIL ?? "Lindeview <onboarding@resend.dev>";
+  const from = process.env.RESEND_FROM_EMAIL ?? `${PROPERTY_NAME} <onboarding@resend.dev>`;
 
   const res = await fetch(RESEND_API, {
     method: "POST",
@@ -57,7 +58,7 @@ async function sendOwnerEmail(subject: string, text: string, replyTo?: string): 
 /** Best-effort – kaster videre ved feil, kalleren fanger og logger. */
 export async function notifyOwnerOfBooking(booking: Booking): Promise<void> {
   const text = [
-    `Du har fått en ny bookingforespørsel på Lindeview.`,
+    `Du har fått en ny bookingforespørsel på ${PROPERTY_NAME}.`,
     `${booking.name}, ${booking.checkIn} – ${booking.checkOut} (${booking.nights} netter).`,
     ``,
     `Logg inn på /admin for å se detaljene og svare.`,
@@ -73,7 +74,7 @@ export async function notifyOwnerOfBooking(booking: Booking): Promise<void> {
  */
 export async function notifyOwnerOfPaymentIssue(booking: Booking, message: string): Promise<void> {
   const text = [
-    `Et betalingsforsøk feilet for en booking på Lindeview.`,
+    `Et betalingsforsøk feilet for en booking på ${PROPERTY_NAME}.`,
     `${booking.name}, ${booking.checkIn} – ${booking.checkOut}.`,
     ``,
     `Feilmelding: ${message}`,
@@ -82,4 +83,21 @@ export async function notifyOwnerOfPaymentIssue(booking: Booking, message: strin
   ].join("\n");
 
   await sendOwnerEmail(`Betaling feilet: ${booking.name} (${booking.checkIn})`, text, booking.email);
+}
+
+/**
+ * Varsler eieren når Airbnb-kalendersynken finner en periode som overlapper
+ * med en allerede bekreftet booking – et tegn på at samme datoer kan være
+ * booket begge steder. Best-effort, samme mønster som de andre varslene.
+ */
+export async function notifyOwnerOfDoubleBooking(overlaps: string): Promise<void> {
+  const text = [
+    `OBS: Airbnb-kalendersynk fant periode(r) som overlapper med en bekreftet booking på ${PROPERTY_NAME}.`,
+    ``,
+    overlaps,
+    ``,
+    `Sjekk /admin så snart som mulig og kontakt riktig gjest før dette blir en reell dobbeltbooking.`,
+  ].join("\n");
+
+  await sendOwnerEmail("Mulig dobbeltbooking oppdaget (Airbnb-synk)", text);
 }

@@ -79,13 +79,15 @@ export type Booking = {
   extraCharges: ExtraCharge[];
 };
 
-/** En periode eieren har blokkert manuelt (eget bruk, vedlikehold o.l.) – ikke knyttet til en gjest. */
+/** En periode som ikke kan bookes – manuelt blokkert av eieren, eller importert fra en ekstern kalender. */
 export type BlockedRange = {
   id: string;
   start: string; // "YYYY-MM-DD", inkludert
   end: string; // "YYYY-MM-DD", ekskludert
   reason: string;
   createdAt: string;
+  /** "manual" (satt av eieren i /admin) eller "airbnb" (hentet fra Airbnb sin iCal-eksport, se lib/ical.ts). Udefinert på eldre data = "manual". */
+  source?: "manual" | "airbnb";
 };
 
 /** Eierens admin-konto. Én konto – ingen flerbrukerstøtte. */
@@ -97,6 +99,12 @@ export type AdminAccount = {
   /** Reservert for fremtidig topartsverifisering – ikke i bruk ennå. */
   mfaEnabled: boolean;
   mfaSecret: string | null;
+  /** Ugjettbar del av URL-en Airbnb bruker til å importere Lindeviews kalender (se app/api/ical/[token]). Stabil – regenereres aldri automatisk. */
+  icalExportToken: string;
+  /** Airbnb sin iCal-eksport-URL, limt inn av eieren i «Min konto» – brukes til å importere Airbnb-reservasjoner som blokkeringer. */
+  airbnbIcalUrl: string | null;
+  /** Tidspunkt for siste vellykkede synk mot airbnbIcalUrl, vist i admin-UI som en enkel helsesjekk. */
+  airbnbIcalSyncedAt: string | null;
   updatedAt: string;
 };
 

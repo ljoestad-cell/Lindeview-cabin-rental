@@ -60,6 +60,29 @@ Eieren kan velge en ledig periode og blokkere den (eget bruk, vedlikehold
 o.l.) med en valgfri årsak — blokkerte datoer telles automatisk med i
 tilgjengeligheten på `/book`, så gjester ikke kan sende forespørsel for dem.
 
+### Kalendersynkronisering med Airbnb
+
+Hytta leies også ut via Airbnb (lenke i [lib/property.ts](lib/property.ts):
+`AIRBNB_URL`) parallelt med denne siden, så uten synkronisering kan samme
+datoer bookes to steder. Under «Kalendersynkronisering» på `/admin/account`:
+
+1. **Lindeview → Airbnb**: kopier lenken som vises der, og lim den inn i
+   Airbnb under Kalender → Tilgjengelighet → Synkroniser kalendere →
+   «Importer kalender». Lenken er ugjettbar (en tilfeldig token,
+   `icalExportToken` på admin-kontoen) i stedet for passordbeskyttet, siden
+   Airbnb henter den uten innlogging — del den ikke offentlig.
+2. **Airbnb → Lindeview**: lim inn Airbnbs egen eksport-URL (samme sted i
+   Airbnb, «Eksporter kalender») i feltet under. Sjekkes automatisk én gang
+   daglig (Vercel Cron, se [vercel.json](vercel.json):
+   `/api/cron/calendar-sync`) og vises som blokkerte datoer i
+   admin-kalenderen, tydelig merket som «Airbnb-reservasjon» og uten
+   mulighet for å fjerne dem manuelt (de erstattes ved neste synk).
+
+Hvis en periode fra Airbnb overlapper med en allerede bekreftet booking her
+(en reell dobbeltbooking), varsles eieren automatisk på e-post (krever at
+Resend er satt opp, se under). Ingen nye miljøvariabler kreves — begge
+URL-ene lagres på admin-kontoen, ikke i env.
+
 ### Nå — må settes for at admin skal virke
 
 Legg til i `.env.local` lokalt, og i Vercel sine Environment Variables for

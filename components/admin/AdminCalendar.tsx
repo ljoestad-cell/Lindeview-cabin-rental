@@ -28,18 +28,23 @@ export default function AdminCalendar({ bookings, initialBlockedRanges }: Props)
 
   const confirmed = bookings.filter((b) => b.status === "confirmed");
   const pending = bookings.filter((b) => b.status === "pending");
+  const manualBlocks = blockedRanges.filter((r) => (r.source ?? "manual") === "manual");
+  const airbnbBlocks = blockedRanges.filter((r) => r.source === "airbnb");
 
   function bookingAt(iso: string, list: Booking[]): Booking | undefined {
     return list.find((b) => iso >= b.checkIn && iso < b.checkOut);
   }
 
-  function dayState(iso: string): "confirmed" | "pending" | "blocked" | "selecting" | "available" | "disabled" {
+  function dayState(
+    iso: string,
+  ): "confirmed" | "pending" | "blocked" | "airbnb" | "selecting" | "available" | "disabled" {
     if (selection.start && selection.end && iso >= selection.start && iso < selection.end) return "selecting";
     if (iso === selection.start) return "selecting";
     if (iso < today() || iso >= SEASON.end) return "disabled";
     if (bookingAt(iso, confirmed)) return "confirmed";
     if (bookingAt(iso, pending)) return "pending";
-    if (isWithin(iso, blockedRanges)) return "blocked";
+    if (isWithin(iso, airbnbBlocks)) return "airbnb";
+    if (isWithin(iso, manualBlocks)) return "blocked";
     return "available";
   }
 
@@ -116,6 +121,7 @@ export default function AdminCalendar({ bookings, initialBlockedRanges }: Props)
     confirmed: "bg-emerald-600 text-white",
     pending: "bg-accent/60 text-white",
     blocked: "bg-muted/40 text-white line-through",
+    airbnb: "bg-rose-500/70 text-white line-through",
     selecting: "bg-brand text-white font-semibold",
     available: "text-foreground hover:bg-brand/10 cursor-pointer",
   };
@@ -186,9 +192,11 @@ export default function AdminCalendar({ bookings, initialBlockedRanges }: Props)
                           ? bookingAt(iso, confirmed)?.name
                           : state === "pending"
                             ? `Forespørsel: ${bookingAt(iso, pending)?.name}`
-                            : state === "blocked"
-                              ? blockedRanges.find((r) => iso >= r.start && iso < r.end)?.reason || "Blokkert"
-                              : undefined
+                            : state === "airbnb"
+                              ? "Airbnb-reservasjon"
+                              : state === "blocked"
+                                ? manualBlocks.find((r) => iso >= r.start && iso < r.end)?.reason || "Blokkert"
+                                : undefined
                       }
                     >
                       {day}
@@ -212,16 +220,19 @@ export default function AdminCalendar({ bookings, initialBlockedRanges }: Props)
           <span className="h-3 w-3 rounded-full bg-muted/40" /> Blokkert
         </span>
         <span className="flex items-center gap-1.5">
+          <span className="h-3 w-3 rounded-full bg-rose-500/70" /> Airbnb-reservasjon
+        </span>
+        <span className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full bg-brand" /> Valgt
         </span>
       </div>
       <p className="mt-2 text-xs text-muted">Klikk to ledige datoer for å velge en periode å blokkere.</p>
 
-      {blockedRanges.length > 0 && (
+      {manualBlocks.length > 0 && (
         <div className="mt-8">
           <p className="font-medium text-foreground">Blokkerte perioder</p>
           <ul className="mt-3 space-y-2">
-            {blockedRanges.map((r) => (
+            {manualBlocks.map((r) => (
               <li
                 key={r.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface px-4 py-2.5 text-sm ring-1 ring-line"
@@ -238,6 +249,23 @@ export default function AdminCalendar({ bookings, initialBlockedRanges }: Props)
                 >
                   Fjern
                 </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {airbnbBlocks.length > 0 && (
+        <div className="mt-8">
+          <p className="font-medium text-foreground">Airbnb-reservasjoner ({airbnbBlocks.length})</p>
+          <p className="mt-1 text-xs text-muted">
+            Hentet automatisk fra Airbnb-kalenderen (se «Min konto») – kan ikke fjernes her, de oppdateres ved neste
+            synk.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {airbnbBlocks.map((r) => (
+              <li key={r.id} className="rounded-xl bg-surface px-4 py-2.5 text-sm ring-1 ring-line">
+                {r.start} → {r.end}
               </li>
             ))}
           </ul>
