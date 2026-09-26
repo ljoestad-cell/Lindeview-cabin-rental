@@ -71,6 +71,21 @@ const photos = [
     className: "",
   },
   {
+    src: "/images/galleri/bedroom-3.avif",
+    alt: "Soverom 3 på Lindeview",
+    className: "sm:row-span-2",
+  },
+  {
+    src: "/images/galleri/valfjell.jpeg",
+    alt: "Utsikt over dalen fra Valfjell i kveldssol",
+    className: "sm:col-span-2",
+  },
+  {
+    src: "/images/galleri/foss.jpeg",
+    alt: "Stor foss med høstfarger i terrenget",
+    className: "",
+  },
+  {
     src: "/images/galleri/hall-2.jpeg",
     alt: "Hall med trapp og inngangsparti",
     className: "",
@@ -78,17 +93,12 @@ const photos = [
   {
     src: "/images/galleri/living-room-gable.jpeg",
     alt: "Stue med peisovn og gavlvegg",
-    className: "sm:col-span-2",
+    className: "",
   },
   {
     src: "/images/galleri/bedroom-2.jpeg",
     alt: "Soverom 2 med skrivebord ved vinduet",
     className: "",
-  },
-  {
-    src: "/images/galleri/bedroom-3.avif",
-    alt: "Soverom 3 på Lindeview",
-    className: "sm:row-span-2",
   },
   {
     src: "/images/galleri/bedroom-4.jpeg",
@@ -133,7 +143,7 @@ export default function Gallery() {
           </div>
         </div>
 
-        <div className="mt-14 grid auto-rows-[220px] grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="mt-14 grid auto-rows-[220px] grid-cols-2 gap-4 sm:grid-flow-dense sm:grid-cols-4">
           {photos.map((photo, index) => (
             <button
               key={photo.src}
