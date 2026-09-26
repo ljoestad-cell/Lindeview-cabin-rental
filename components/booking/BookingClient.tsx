@@ -9,6 +9,7 @@ import BookingCalendar from "@/components/booking/BookingCalendar";
 import PriceSummary from "@/components/booking/PriceSummary";
 import PaymentNotice from "@/components/booking/PaymentNotice";
 import QuantityField from "@/components/booking/QuantityField";
+import StayFacts from "@/components/booking/StayFacts";
 
 type Availability = {
   season: { start: string; end: string };
@@ -112,7 +113,7 @@ export default function BookingClient({ availability }: { availability: Availabi
 
   return (
     <div className="grid gap-10 lg:grid-cols-[1.6fr_1fr] lg:items-start">
-      <div>
+      <div className="space-y-6">
         <BookingCalendar
           season={availability.season}
           minNights={availability.minNights}
@@ -124,6 +125,7 @@ export default function BookingClient({ availability }: { availability: Availabi
             setError(null);
           }}
         />
+        <StayFacts />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
