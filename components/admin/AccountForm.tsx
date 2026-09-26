@@ -17,6 +17,7 @@ export default function AccountForm({ initialAccount }: { initialAccount: Public
         initialAirbnbSyncEnabled={initialAccount.airbnbSyncEnabled}
         airbnbIcalSyncedAt={initialAccount.airbnbIcalSyncedAt}
       />
+      <BackupSection />
       <MfaSection enabled={initialAccount.mfaEnabled} />
     </div>
   );
@@ -378,7 +379,7 @@ function CalendarSyncSection({
         <label className="block">
           <span className="text-sm font-medium text-foreground">2. Airbnb → Lindeviews kalender</span>
           <p className="mt-1 text-sm text-muted">
-            Lim inn Airbnbs eksport-URL herfra (samme sted, «Eksporter kalender»). Sjekkes automatisk hver time.
+            Lim inn Airbnbs eksport-URL herfra (samme sted, «Eksporter kalender»). Sjekkes automatisk én gang i døgnet – trykk «Synkroniser nå» før du godkjenner en forespørsel.
           </p>
           <input
             type="url"
@@ -403,6 +404,36 @@ function CalendarSyncSection({
           {busy ? "Lagrer..." : "Lagre"}
         </button>
       </form>
+    </section>
+  );
+}
+
+/** Nedlasting av alt som bare finnes i databasen – se lib/backup.ts. */
+function BackupSection() {
+  return (
+    <section className="rounded-2xl bg-surface p-6 ring-1 ring-line">
+      <h2 className="font-display text-lg text-brand">Sikkerhetskopi</h2>
+      <p className="mt-1 text-sm text-muted">
+        Bookinger, blokkeringer, priser og innstillinger finnes bare i databasen. Last ned en kopi
+        jevnlig, for eksempel én gang i måneden, og lagre den et trygt sted. Passordet er aldri med
+        i filen.
+      </p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <a
+          href="/api/admin/backup"
+          download
+          className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-dark"
+        >
+          Last ned full sikkerhetskopi (JSON)
+        </a>
+        <a
+          href="/api/admin/backup?format=csv"
+          download
+          className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand/5"
+        >
+          Bookinger som regneark (CSV)
+        </a>
+      </div>
     </section>
   );
 }

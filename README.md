@@ -69,6 +69,20 @@ Admin kan ikke bekrefte en forespørsel som overlapper en allerede bekreftet
 booking eller en blokkert periode. Det gir en feilmelding i stedet for
 dobbeltbooking.
 
+### Sikkerhetskopi
+
+Bookinger, blokkeringer, priser og kontoinnstillinger finnes bare i databasen.
+Under «Min konto» → «Sikkerhetskopi» kan du laste ned:
+
+- **Full sikkerhetskopi (JSON):** alt, uten passordhash og MFA-hemmelighet.
+- **Bookinger som regneark (CSV):** én rad per booking med status, beløp,
+  betaling og depositum. Filen åpnes riktig i norsk Excel (semikolon og
+  desimalkomma).
+
+Last ned en kopi jevnlig, for eksempel én gang i måneden, og lagre den et
+trygt sted. Det finnes ingen gjenopprettingsknapp. JSON-filen er råmaterialet
+hvis data en gang må legges tilbake.
+
 ### Personvern
 
 Navn, e-post, telefon og melding anonymiseres automatisk av den daglige
