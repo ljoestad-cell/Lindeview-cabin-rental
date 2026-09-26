@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BEDDING_MAX, EV_CHARGER_MAX, MAX_GUESTS, MIN_NIGHTS, PET_MAX } from "@/lib/config";
 import type { DateRange } from "@/lib/dates";
@@ -25,9 +26,20 @@ type FormState = {
   phone: string;
   guests: string;
   message: string;
+  acceptedTerms: boolean;
+  /** Honeypot – skjult for mennesker, se app/api/bookings/route.ts. */
+  website: string;
 };
 
-const EMPTY_FORM: FormState = { name: "", email: "", phone: "", guests: "2", message: "" };
+const EMPTY_FORM: FormState = {
+  name: "",
+  email: "",
+  phone: "",
+  guests: "2",
+  message: "",
+  acceptedTerms: false,
+  website: "",
+};
 
 const INPUT_CLASS =
   "w-full rounded-xl border border-line bg-background px-4 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-accent";
@@ -45,7 +57,7 @@ export default function BookingClient({ availability }: { availability: Availabi
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const canSubmit = Boolean(range.checkIn && range.checkOut) && !submitting;
+  const canSubmit = Boolean(range.checkIn && range.checkOut) && form.acceptedTerms && !submitting;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -70,6 +82,8 @@ export default function BookingClient({ availability }: { availability: Availabi
           phone: form.phone,
           message: form.message,
           extras,
+          acceptedTerms: form.acceptedTerms,
+          website: form.website,
         }),
       });
 
@@ -179,6 +193,17 @@ export default function BookingClient({ availability }: { availability: Availabi
               className={`${INPUT_CLASS} resize-none`}
             />
           </Field>
+          <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+            <label>
+              Nettside
+              <input
+                tabIndex={-1}
+                autoComplete="off"
+                value={form.website}
+                onChange={(e) => setForm({ ...form, website: e.target.value })}
+              />
+            </label>
+          </div>
         </div>
 
         <div className="divide-y divide-line rounded-2xl bg-surface px-6 ring-1 ring-line">
@@ -211,6 +236,27 @@ export default function BookingClient({ availability }: { availability: Availabi
         </div>
 
         <PaymentNotice deposit={prices.deposit} />
+
+        <label className="flex items-start gap-3 text-sm text-foreground">
+          <input
+            type="checkbox"
+            required
+            checked={form.acceptedTerms}
+            onChange={(e) => setForm({ ...form, acceptedTerms: e.target.checked })}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+          />
+          <span>
+            Jeg har lest og godtar{" "}
+            <Link href="/vilkar" target="_blank" className="font-medium text-accent underline">
+              leievilkårene
+            </Link>{" "}
+            og{" "}
+            <Link href="/personvern" target="_blank" className="font-medium text-accent underline">
+              personvernerklæringen
+            </Link>
+            .
+          </span>
+        </label>
 
         {error && (
           <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>

@@ -58,6 +58,26 @@ export function eachDate(range: DateRange): string[] {
   return out;
 }
 
+/** Legg til (eller trekk fra) et antall måneder på en ISO-dato. */
+export function addMonths(iso: string, months: number): string {
+  const d = fromIso(iso);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return toIso(d);
+}
+
+/**
+ * «1. mai – 30. september 2027» for en sesong [start, endExclusive). Slutten
+ * er siste natt (dagen før seneste utsjekk), samme logikk som SEASON_END.
+ */
+export function formatSeasonLabel(start: string, endExclusive: string): string {
+  const lastNight = addDays(endExclusive, -1);
+  const dayMonth = new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "long", timeZone: "UTC" });
+  const full = new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  const sameYear = start.slice(0, 4) === lastNight.slice(0, 4);
+  const from = (sameYear ? dayMonth : full).format(fromIso(start));
+  return `${from} – ${full.format(fromIso(lastNight))}`;
+}
+
 /** True hvis [checkIn, checkOut) ligger helt innenfor [seasonStart, seasonEnd). */
 export function isWithinSeason(
   checkIn: string,

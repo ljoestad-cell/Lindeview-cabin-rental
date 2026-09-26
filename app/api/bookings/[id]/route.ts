@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { hasValidSession } from "@/lib/auth";
-import { deleteBooking, setStatus } from "@/lib/bookings";
+import { BookingValidationError, deleteBooking, setStatus, type RefundMode } from "@/lib/bookings";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,18 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/bookin
     return NextResponse.json({ error: "Status må være 'confirmed' eller 'declined'." }, { status: 400 });
   }
 
-  const updated = await setStatus(id, status as "confirmed" | "declined");
+  const refund = (body as { refund?: unknown })?.refund;
+  const refundMode: RefundMode = refund === "policy" ? "policy" : "full";
+
+  let updated;
+  try {
+    updated = await setStatus(id, status as "confirmed" | "declined", refundMode);
+  } catch (err) {
+    if (err instanceof BookingValidationError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
+    throw err;
+  }
   if (!updated) {
     return NextResponse.json({ error: "Fant ikke booking." }, { status: 404 });
   }

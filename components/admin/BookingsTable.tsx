@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { policyRefundAmount } from "@/lib/cancellation";
+import { today } from "@/lib/dates";
 import { formatEur, type BookingExtras } from "@/lib/pricing";
 import type { Booking, BookingStatus } from "@/lib/types";
 import PaymentPanel from "@/components/admin/PaymentPanel";
@@ -32,14 +34,14 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function updateStatus(id: string, status: "confirmed" | "declined") {
+  async function updateStatus(id: string, status: "confirmed" | "declined", refund?: "policy" | "full") {
     setBusyId(id);
     setError(null);
     try {
       const res = await fetch(`/api/bookings/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, refund }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -105,6 +107,9 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                 <p className="mt-2 text-sm font-medium text-foreground">
                   {formatEur(b.pricing.total)} totalt
                 </p>
+                {b.mainCharge.refundedAmount !== null && (
+                  <p className="text-sm text-muted">Refundert {formatEur(b.mainCharge.refundedAmount)}</p>
+                )}
               </div>
 
               <div className="flex shrink-0 flex-wrap gap-2">
@@ -125,10 +130,18 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                     </ActionButton>
                   </>
                 )}
-                {b.status === "confirmed" && (
-                  <ActionButton onClick={() => updateStatus(b.id, "declined")} disabled={busyId === b.id}>
+                {b.status === "confirmed" && b.mainCharge.status !== "paid" && (
+                  <ActionButton
+                    onClick={() => {
+                      if (confirm("Avbestille denne bookingen? Ingenting er trukket ennå.")) updateStatus(b.id, "declined");
+                    }}
+                    disabled={busyId === b.id}
+                  >
                     Avbestill
                   </ActionButton>
+                )}
+                {b.status === "confirmed" && b.mainCharge.status === "paid" && (
+                  <CancelPaidButtons booking={b} busy={busyId === b.id} onCancel={(refund) => updateStatus(b.id, "declined", refund)} />
                 )}
                 <ActionButton onClick={() => remove(b.id)} disabled={busyId === b.id} variant="danger">
                   Slett
@@ -146,6 +159,42 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
         ))}
       </div>
     </div>
+  );
+}
+
+/**
+ * Avbestilling av en betalt booking: gjesten avbestiller (refusjon etter
+ * leievilkårene, se lib/cancellation.ts) eller eieren avlyser (full refusjon).
+ */
+function CancelPaidButtons({
+  booking,
+  busy,
+  onCancel,
+}: {
+  booking: Booking;
+  busy: boolean;
+  onCancel: (refund: "policy" | "full") => void;
+}) {
+  const policyAmount = policyRefundAmount(booking.pricing.total, booking.checkIn, today());
+  return (
+    <>
+      <ActionButton
+        onClick={() => {
+          if (confirm(`Gjesten avbestiller. Refunder ${formatEur(policyAmount)} etter leievilkårene?`)) onCancel("policy");
+        }}
+        disabled={busy}
+      >
+        Gjesten avbestiller ({formatEur(policyAmount)} tilbake)
+      </ActionButton>
+      <ActionButton
+        onClick={() => {
+          if (confirm(`Vi avlyser. Refunder hele beløpet (${formatEur(booking.pricing.total)})?`)) onCancel("full");
+        }}
+        disabled={busy}
+      >
+        Vi avlyser (full refusjon)
+      </ActionButton>
+    </>
   );
 }
 

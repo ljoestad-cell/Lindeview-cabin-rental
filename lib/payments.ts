@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { CURRENCY } from "@/lib/config";
-import { getStripe, isStripeConfigured, siteUrl } from "@/lib/stripe";
+import { siteUrl } from "@/lib/site";
+import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import type { Booking } from "@/lib/types";
 
 /**
@@ -162,14 +163,17 @@ export async function chargeExtra(
   return offSessionCharge(booking, amount, "extra", { description });
 }
 
-/** Best-effort refusjon av hovedbeløpet – brukes hvis en betalt booking avbestilles. */
-export async function refundMainCharge(booking: Booking): Promise<PaymentResult> {
+/** Refunderer hovedbeløpet helt, eller delvis med `amount` – brukes når en betalt booking avbestilles. */
+export async function refundMainCharge(booking: Booking, amount?: number): Promise<PaymentResult> {
   if (!booking.mainCharge.paymentIntentId) {
     return { ok: false, error: "Ingen betaling å refundere." };
   }
   const stripe = getStripe();
   try {
-    const refund = await stripe.refunds.create({ payment_intent: booking.mainCharge.paymentIntentId });
+    const refund = await stripe.refunds.create({
+      payment_intent: booking.mainCharge.paymentIntentId,
+      amount: amount !== undefined ? toMinorUnits(amount) : undefined,
+    });
     return { ok: true, paymentIntentId: refund.id };
   } catch (err) {
     if (err instanceof Stripe.errors.StripeError) return { ok: false, error: err.message };

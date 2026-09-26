@@ -11,6 +11,8 @@ export type MainCharge = {
   paymentIntentId: string | null;
   paidAt: string | null;
   lastError: string | null;
+  /** Beløp refundert ved avbestilling (etter vilkårene eller fullt) – null hvis ingenting er refundert. */
+  refundedAmount: number | null;
 };
 
 export type DepositStatus = "none" | "held" | "captured" | "released" | "failed";
@@ -42,6 +44,7 @@ export const DEFAULT_MAIN_CHARGE: MainCharge = {
   paymentIntentId: null,
   paidAt: null,
   lastError: null,
+  refundedAmount: null,
 };
 
 /** Uten `amount` – det settes fra gjeldende pris når bookingen opprettes. */
@@ -80,6 +83,12 @@ export type Booking = {
   mainCharge: MainCharge;
   deposit: Deposit;
   extraCharges: ExtraCharge[];
+
+  /** TERMS_VERSION gjesten krysset av for på /book – null på bookinger fra før vilkårene fantes. */
+  termsVersion: string | null;
+  termsAcceptedAt: string | null;
+  /** Satt når personopplysningene er fjernet etter oppbevaringstiden (se anonymizeExpiredBookings). */
+  anonymizedAt: string | null;
 };
 
 /** En periode som ikke kan bookes – manuelt blokkert av eieren, eller importert fra en ekstern kalender. */
@@ -123,4 +132,6 @@ export type BookingRequestInput = {
   phone: string;
   message: string;
   extras: BookingExtras;
+  /** Må være true – gjesten har krysset av for leievilkårene. */
+  acceptedTerms: boolean;
 };

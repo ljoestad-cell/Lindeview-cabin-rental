@@ -22,6 +22,9 @@ export interface BookingStore {
   /** Priser lagret fra /admin/priser – null til eieren har lagret noe (da gjelder DEFAULT_PRICES). */
   getPrices(): Promise<Partial<Prices> | null>;
   setPrices(prices: Prices): Promise<Prices>;
+
+  /** Teller opp `key` og returnerer ny verdi. Telleren nullstilles `windowSeconds` etter første treff – brukt til rate-limiting. */
+  incrementCounter(key: string, windowSeconds: number): Promise<number>;
 }
 
 const REDIS_BOOKINGS_KEY = "lindeview:bookings";
@@ -106,6 +109,13 @@ class RedisStore implements BookingStore {
     await this.redis.set(REDIS_PRICES_KEY, prices);
     return prices;
   }
+
+  async incrementCounter(key: string, windowSeconds: number): Promise<number> {
+    const redisKey = `lindeview:ratelimit:${key}`;
+    const count = await this.redis.incr(redisKey);
+    if (count === 1) await this.redis.expire(redisKey, windowSeconds);
+    return count;
+  }
 }
 
 /**
@@ -114,6 +124,9 @@ class RedisStore implements BookingStore {
  * `npm run dev`. Filene ligger i `.data/` som er gitignored.
  */
 class FileStore implements BookingStore {
+  /** Kun i minnet – rate-limiting trenger ikke overleve en omstart av dev-serveren. */
+  private counters = new Map<string, { count: number; resetAt: number }>();
+
   private bookingsPath = path.join(process.cwd(), ".data", "bookings.json");
   private blockedPath = path.join(process.cwd(), ".data", "blocked.json");
   private adminAccountPath = path.join(process.cwd(), ".data", "admin-account.json");
@@ -213,6 +226,17 @@ class FileStore implements BookingStore {
     await fs.mkdir(path.dirname(this.pricesPath), { recursive: true });
     await fs.writeFile(this.pricesPath, JSON.stringify(prices, null, 2), "utf-8");
     return prices;
+  }
+
+  async incrementCounter(key: string, windowSeconds: number): Promise<number> {
+    const now = Date.now();
+    const existing = this.counters.get(key);
+    const entry =
+      existing && existing.resetAt > now
+        ? { ...existing, count: existing.count + 1 }
+        : { count: 1, resetAt: now + windowSeconds * 1000 };
+    this.counters.set(key, entry);
+    return entry.count;
   }
 }
 

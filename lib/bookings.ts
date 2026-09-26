@@ -9,10 +9,15 @@ import {
   MAX_GUESTS,
   MIN_NIGHTS,
   PET_MAX,
+  RETENTION_MONTHS_CONFIRMED,
+  RETENTION_MONTHS_OTHER,
   SEASON_END,
   SEASON_START,
+  TERMS_VERSION,
 } from "@/lib/config";
-import { addDays, isIsoDate, isWithinSeason, nightsBetween, rangesOverlap, today } from "@/lib/dates";
+import { policyRefundAmount } from "@/lib/cancellation";
+import { findConflict } from "@/lib/conflicts";
+import { addDays, addMonths, isIsoDate, isWithinSeason, nightsBetween, rangesOverlap, today } from "@/lib/dates";
 import { parseIcsBusyRanges } from "@/lib/ical";
 import { notifyOwnerOfBooking, notifyOwnerOfDoubleBooking, notifyOwnerOfPaymentIssue } from "@/lib/notifications";
 import * as payments from "@/lib/payments";
@@ -46,13 +51,21 @@ function normalizeBooking(booking: Booking): Booking {
     stripeCustomerId: booking.stripeCustomerId ?? null,
     defaultPaymentMethodId: booking.defaultPaymentMethodId ?? null,
     secureCardUrl: booking.secureCardUrl ?? null,
-    mainCharge: booking.mainCharge ?? { ...DEFAULT_MAIN_CHARGE },
+    mainCharge: { ...DEFAULT_MAIN_CHARGE, ...booking.mainCharge },
     // Bookinger fra før depositum ble lagret på bookingen fikk standardbeløpet.
     deposit: { ...DEFAULT_DEPOSIT, ...booking.deposit, amount: booking.deposit?.amount ?? DEPOSIT_AMOUNT },
     extraCharges: booking.extraCharges ?? [],
     extras: booking.extras ?? { ...DEFAULT_EXTRAS },
+    termsVersion: booking.termsVersion ?? null,
+    termsAcceptedAt: booking.termsAcceptedAt ?? null,
+    anonymizedAt: booking.anonymizedAt ?? null,
   };
 }
+
+const CONFLICT_MESSAGES = {
+  booking: "Datoene er allerede booket.",
+  blocked: "Datoene er ikke tilgjengelige.",
+} as const;
 
 function validateExtras(extras: BookingExtras) {
   const checks: [number, number, string][] = [
@@ -96,6 +109,9 @@ function validateInput(input: BookingRequestInput) {
   if (!input.name.trim()) throw new BookingValidationError("Navn mangler.");
   if (!EMAIL_RE.test(input.email)) throw new BookingValidationError("Ugyldig e-postadresse.");
   if (!input.phone.trim()) throw new BookingValidationError("Telefonnummer mangler.");
+  if (input.acceptedTerms !== true) {
+    throw new BookingValidationError("Du må godta leievilkårene for å sende forespørselen.");
+  }
   validateExtras(input.extras ?? DEFAULT_EXTRAS);
 }
 
@@ -105,19 +121,9 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
 
   const store = getStore();
   const requested = { start: input.checkIn, end: input.checkOut };
-  const existing = await loadAllBookings();
-  const overlapsConfirmed = existing.some(
-    (b) => b.status === "confirmed" && rangesOverlap({ start: b.checkIn, end: b.checkOut }, requested),
-  );
-  if (overlapsConfirmed) {
-    throw new BookingValidationError("Datoene er allerede booket.");
-  }
-
-  const blockedRanges = await store.listBlockedRanges();
-  const overlapsBlocked = blockedRanges.some((r) => rangesOverlap({ start: r.start, end: r.end }, requested));
-  if (overlapsBlocked) {
-    throw new BookingValidationError("Datoene er ikke tilgjengelige.");
-  }
+  const [existing, blockedRanges] = await Promise.all([loadAllBookings(), store.listBlockedRanges()]);
+  const conflict = findConflict(requested, existing, blockedRanges);
+  if (conflict) throw new BookingValidationError(CONFLICT_MESSAGES[conflict]);
 
   const extras = input.extras ?? DEFAULT_EXTRAS;
   const prices = await getPrices();
@@ -143,6 +149,9 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     mainCharge: { ...DEFAULT_MAIN_CHARGE },
     deposit: { ...DEFAULT_DEPOSIT, amount: prices.deposit },
     extraCharges: [],
+    termsVersion: TERMS_VERSION,
+    termsAcceptedAt: new Date().toISOString(),
+    anonymizedAt: null,
   };
 
   await store.createBooking(booking);
@@ -195,10 +204,31 @@ export async function regeneratePaymentLink(id: string): Promise<Booking | null>
   return refreshSecureCardLink(booking);
 }
 
-export async function setStatus(id: string, status: BookingStatus): Promise<Booking | null> {
+/**
+ * Hvor mye som refunderes når en betalt booking avbestilles: "policy" følger
+ * leievilkårene (gjesten avbestiller), "full" refunderer alt (eieren avlyser).
+ */
+export type RefundMode = "policy" | "full";
+
+/**
+ * Bekrefter eller avslår/avbestiller en booking. Ved bekreftelse sjekkes
+ * overlapp på nytt – to ventende forespørsler på samme datoer kan ellers
+ * begge bli godkjent. Kaster BookingValidationError ved konflikt.
+ */
+export async function setStatus(
+  id: string,
+  status: BookingStatus,
+  refundMode: RefundMode = "full",
+): Promise<Booking | null> {
   const store = getStore();
   const before = await loadBooking(id);
   if (!before) return null;
+
+  if (status === "confirmed") {
+    const [bookings, blockedRanges] = await Promise.all([loadAllBookings(), store.listBlockedRanges()]);
+    const conflict = findConflict({ start: before.checkIn, end: before.checkOut }, bookings, blockedRanges, id);
+    if (conflict) throw new BookingValidationError(CONFLICT_MESSAGES[conflict]);
+  }
 
   await store.updateBooking(id, { status });
   let updated = { ...before, status };
@@ -227,10 +257,20 @@ export async function setStatus(id: string, status: BookingStatus): Promise<Book
     }
   }
 
-  if (status === "declined" && updated.mainCharge.status === "paid") {
+  if (status === "declined" && updated.mainCharge.status === "paid" && updated.mainCharge.refundedAmount === null) {
+    const amount =
+      refundMode === "policy"
+        ? policyRefundAmount(updated.pricing.total, updated.checkIn, today())
+        : updated.pricing.total;
     try {
-      const result = await payments.refundMainCharge(updated);
-      if (!result.ok) console.error("[bookings] Refusjon feilet:", result.error);
+      const result = amount > 0 ? await payments.refundMainCharge(updated, amount) : { ok: true as const };
+      if (result.ok) {
+        const mainCharge = { ...updated.mainCharge, refundedAmount: amount };
+        await store.updateBooking(id, { mainCharge });
+        updated = { ...updated, mainCharge };
+      } else {
+        console.error("[bookings] Refusjon feilet:", result.error);
+      }
     } catch (err) {
       console.error("[bookings] Kunne ikke refundere hovedbeløp:", err);
     }
@@ -519,6 +559,33 @@ export async function runDueCharges(): Promise<{ charged: string[]; deposits: st
   }
 
   return { charged, deposits };
+}
+
+/**
+ * Personvern: fjerner navn, e-post, telefon og melding fra bookinger når
+ * oppbevaringstiden etter utsjekk er ute (se RETENTION_MONTHS_* i
+ * lib/config.ts og /personvern). Datoer og beløp beholdes for regnskap og
+ * statistikk. Kjøres daglig sammen med belastningene.
+ */
+export async function anonymizeExpiredBookings(): Promise<string[]> {
+  const bookings = await loadAllBookings();
+  const now = today();
+  const anonymized: string[] = [];
+  for (const b of bookings) {
+    if (b.anonymizedAt) continue;
+    const months = b.status === "confirmed" ? RETENTION_MONTHS_CONFIRMED : RETENTION_MONTHS_OTHER;
+    if (addMonths(b.checkOut, months) > now) continue;
+    await getStore().updateBooking(b.id, {
+      name: "Anonymisert gjest",
+      email: "",
+      phone: "",
+      message: "",
+      secureCardUrl: null,
+      anonymizedAt: new Date().toISOString(),
+    });
+    anonymized.push(b.id);
+  }
+  return anonymized;
 }
 
 // --- Airbnb-kalendersynk ------------------------------------------------

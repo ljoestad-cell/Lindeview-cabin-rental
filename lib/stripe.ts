@@ -15,15 +15,3 @@ export function getStripe(): Stripe {
   }
   return client;
 }
-
-/**
- * Nettsidens egen URL, til bruk i Stripe Checkout sine success/cancel-URLer.
- * Faller tilbake til Vercel sin auto-satte produksjons-URL, så til localhost i dev.
- */
-export function siteUrl(): string {
-  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  }
-  return "http://localhost:3000";
-}

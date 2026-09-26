@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   CONTACT_EMAIL,
   LOCATION_LABEL,
@@ -46,8 +47,16 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="mx-auto mt-10 max-w-7xl border-t border-white/10 px-6 pt-6 text-xs text-white/40 sm:px-10">
-        © {new Date().getFullYear()} {PROPERTY_NAME}. Alle rettigheter forbeholdt.
+      <div className="mx-auto mt-10 flex max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-white/10 px-6 pt-6 text-xs text-white/40 sm:px-10">
+        <span>© {new Date().getFullYear()} {PROPERTY_NAME}. Alle rettigheter forbeholdt.</span>
+        <span className="flex gap-5">
+          <Link href="/vilkar" className="hover:text-white">
+            Leievilkår
+          </Link>
+          <Link href="/personvern" className="hover:text-white">
+            Personvern
+          </Link>
+        </span>
       </div>
     </footer>
   );

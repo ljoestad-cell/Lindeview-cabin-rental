@@ -1,9 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createSession, destroySession, isCorrectPassword } from "@/lib/auth";
+import { isRateLimited } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (await isRateLimited("login", request)) {
+    return NextResponse.json(
+      { error: "For mange innloggingsforsøk. Vent et kvarter og prøv igjen." },
+      { status: 429 },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
