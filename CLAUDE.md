@@ -30,8 +30,8 @@ gjennomgang av arkitektur og tredjepartsvalg.
 
 ## Arbeidsvaner i dette prosjektet
 
-- Før commit: `npx tsc --noEmit`, `npx eslint .`, `npm run build` — alle skal
-  være rene. Ved UI-endringer: verifiser visuelt i nettleser (Playwright mot
+- Før commit: `npx tsc --noEmit`, `npx eslint .`, `npm test`, `npm run build`
+  — alle skal være rene. Ved UI-endringer: verifiser visuelt i nettleser (Playwright mot
   den lokale dev-serveren) før du sier noe er ferdig.
 - Commit-meldinger på norsk, forklarer hva og hvorfor, avsluttes med
   `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.

@@ -1,33 +1,12 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Lindeview
 
-## Getting Started
-
-First, run the development server:
+Nettside og bookingløsning for utleie av Lindeview (Next.js, hostet på Vercel).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev      # http://localhost:3000
+npm test         # enhetstester (Vitest) for pris, datoer, avbestilling, overlapp og iCal
 ```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
 ## Booking & admin
 
@@ -61,6 +40,60 @@ pr. booking (ikke pr. natt). Prisene settes under «Priser» i admin:
 Bookingsiden viser også tydelig at hytta kun leies ut til familier, ikke
 voksne grupper, firmaer eller arrangementer
 ([lib/config.ts](lib/config.ts): `FAMILY_ONLY_NOTICE`).
+
+Sesongteksten («1. mai – 30. september 2027») lages automatisk fra
+`SEASON_START`/`SEASON_END` i [lib/config.ts](lib/config.ts). Når sesongen skal
+flyttes, endrer du bare datoene.
+
+### Leievilkår og avbestilling
+
+Gjesten må krysse av for [leievilkårene](app/vilkar/page.tsx) og
+[personvernerklæringen](app/personvern/page.tsx) før forespørselen kan sendes.
+Vilkårsversjonen (`TERMS_VERSION`) og tidspunktet lagres på bookingen. Endrer
+du teksten i vilkårene, må du også sette `TERMS_VERSION` til dagens dato.
+
+Avbestillingsreglene står i [lib/config.ts](lib/config.ts), og tallene vises
+automatisk i vilkårene:
+
+| Når gjesten avbestiller | Refusjon |
+|---|---|
+| Minst 30 dager før innsjekk | Alt (normalt er ingenting trukket ennå) |
+| 14–29 dager før innsjekk | 50 % av leiebeløpet |
+| Mindre enn 14 dager før | Ingenting |
+
+For en betalt booking har admin to knapper. **«Gjesten avbestiller»**
+refunderer etter tabellen over, og beløpet står på knappen. **«Vi avlyser»**
+refunderer alt. Det som er refundert, vises på bookingen.
+
+Admin kan ikke bekrefte en forespørsel som overlapper en allerede bekreftet
+booking eller en blokkert periode. Det gir en feilmelding i stedet for
+dobbeltbooking.
+
+### Personvern
+
+Navn, e-post, telefon og melding anonymiseres automatisk av den daglige
+cron-jobben (`/api/cron/charges`). Bekreftede bookinger anonymiseres 5 år
+etter utsjekk (bokføringsloven), og andre forespørsler etter 6 måneder
+(`RETENTION_MONTHS_*` i [lib/config.ts](lib/config.ts)). Datoer og beløp
+beholdes.
+
+### Beskyttelse mot misbruk
+
+- Admin-innlogging: maks 10 forsøk per IP per 15 minutter. Deretter svarer
+  API-et med 429.
+- Bookingskjemaet: maks 5 forespørsler per IP per time, pluss et skjult
+  honeypot-felt som stopper enkle bots uten at noe lagres.
+
+Tellerne ligger i samme lager som bookingene (Redis i produksjon, i minnet
+lokalt). Grensene settes i [lib/rate-limit.ts](lib/rate-limit.ts).
+
+### Søkemotorer og deling
+
+`robots.txt`, `sitemap.xml`, et delingsbilde (`app/opengraph-image.jpg`) og
+strukturerte data (schema.org `VacationRental`) genereres automatisk. Admin og
+API er stengt for søkemotorer. Adressene bygges fra `NEXT_PUBLIC_SITE_URL`,
+eller fra Vercels produksjons-URL hvis den ikke er satt. Sett
+`NEXT_PUBLIC_SITE_URL` når siden får eget domene.
 
 ### Admin-kalender og datoblokkering
 
@@ -120,7 +153,7 @@ topartsverifisering (MFA) — ikke funksjonell ennå, men datamodellen
 
 ### E-postvarsel om nye forespørsler
 
-Eieren varsles på **ljoestad@gmail.com** (satt i [lib/config.ts](lib/config.ts) som
+Eieren varsles på **ljoestad@gmail.com** (satt i [lib/property.ts](lib/property.ts) som
 `OWNER_EMAIL`) hver gang noen sender en bookingforespørsel. Uten oppsett skjer
 ingenting (forespørselen lagres og vises i `/admin` uansett) — for å faktisk
 sende e-post:
@@ -156,7 +189,7 @@ Bookinger fungerer helt uten dette — sett opp når dere er klare:
 
 ### Betaling (Stripe)
 
-Alle priser er i **EUR** ([lib/config.ts](lib/config.ts)). Betalingsflyten:
+Alle priser er i **EUR**, og settes under «Priser» i admin. Betalingsflyten:
 
 1. Du bekrefter en booking i `/admin` → en secure-card-lenke lages automatisk
    (Stripe Checkout, "sikre kort"-modus — ingen belastning). Lenken **vises i
@@ -165,7 +198,7 @@ Alle priser er i **EUR** ([lib/config.ts](lib/config.ts)). Betalingsflyten:
 2. Gjesten fyller inn kortet sitt. Ingenting belastes ennå.
 3. **Hovedbeløpet** (leie + utvask) trekkes automatisk 30 dager før innsjekk
    — eller med en gang, hvis bookingen ble bekreftet senere enn det.
-4. **Depositum** (1000 EUR) reserveres automatisk på kortet **på
+4. **Depositum** (standard 1000 EUR, beløpet låses på bookingen) reserveres automatisk på kortet **på
    utsjekksdagen** (ikke før innsjekk — et korthold varer bare ca. 7 dager
    hos de fleste banker, så det holdes til rett etter oppholdet i stedet for
    å strekke seg over hele det). Du har deretter noen dager på deg til å
@@ -214,8 +247,7 @@ tillit til at eieren er en reell person og hytta faktisk finnes:
 - «Sikker betaling via Stripe»-merke i
   [PaymentNotice.tsx](components/booking/PaymentNotice.tsx).
 
-## Deploy on Vercel
+## Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Prosjektet deployes automatisk til Vercel ved push til `main`. Miljøvariablene
+som trengs, står i seksjonene over.
