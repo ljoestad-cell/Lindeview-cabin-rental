@@ -17,6 +17,8 @@ export type DepositStatus = "none" | "held" | "captured" | "released" | "failed"
 
 export type Deposit = {
   status: DepositStatus;
+  /** Beløpet som reserveres – låst da gjesten sendte forespørselen, så senere prisendringer i admin ikke påvirker den. */
+  amount: number;
   paymentIntentId: string | null;
   heldAt: string | null;
   resolvedAt: string | null;
@@ -42,7 +44,8 @@ export const DEFAULT_MAIN_CHARGE: MainCharge = {
   lastError: null,
 };
 
-export const DEFAULT_DEPOSIT: Deposit = {
+/** Uten `amount` – det settes fra gjeldende pris når bookingen opprettes. */
+export const DEFAULT_DEPOSIT: Omit<Deposit, "amount"> = {
   status: "none",
   paymentIntentId: null,
   heldAt: null,

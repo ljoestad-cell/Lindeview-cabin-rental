@@ -4,6 +4,7 @@ import * as calendar from "@/lib/calendar";
 import {
   BEDDING_MAX,
   CHARGE_DAYS_BEFORE_CHECKIN,
+  DEPOSIT_AMOUNT,
   EV_CHARGER_MAX,
   MAX_GUESTS,
   MIN_NIGHTS,
@@ -16,7 +17,8 @@ import { parseIcsBusyRanges } from "@/lib/ical";
 import { notifyOwnerOfBooking, notifyOwnerOfDoubleBooking, notifyOwnerOfPaymentIssue } from "@/lib/notifications";
 import * as payments from "@/lib/payments";
 import { isStripeConfigured } from "@/lib/stripe";
-import { DEFAULT_EXTRAS, quote, type BookingExtras } from "@/lib/pricing";
+import { getPrices } from "@/lib/prices";
+import { DEFAULT_EXTRAS, quote, type BookingExtras, type Prices } from "@/lib/pricing";
 import { getStore } from "@/lib/store";
 import {
   DEFAULT_DEPOSIT,
@@ -45,7 +47,8 @@ function normalizeBooking(booking: Booking): Booking {
     defaultPaymentMethodId: booking.defaultPaymentMethodId ?? null,
     secureCardUrl: booking.secureCardUrl ?? null,
     mainCharge: booking.mainCharge ?? { ...DEFAULT_MAIN_CHARGE },
-    deposit: booking.deposit ?? { ...DEFAULT_DEPOSIT },
+    // Bookinger fra før depositum ble lagret på bookingen fikk standardbeløpet.
+    deposit: { ...DEFAULT_DEPOSIT, ...booking.deposit, amount: booking.deposit?.amount ?? DEPOSIT_AMOUNT },
     extraCharges: booking.extraCharges ?? [],
     extras: booking.extras ?? { ...DEFAULT_EXTRAS },
   };
@@ -117,7 +120,8 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
   }
 
   const extras = input.extras ?? DEFAULT_EXTRAS;
-  const pricing = quote(input.checkIn, input.checkOut, extras);
+  const prices = await getPrices();
+  const pricing = quote(prices, input.checkIn, input.checkOut, extras);
   const booking: Booking = {
     id: randomUUID(),
     createdAt: new Date().toISOString(),
@@ -137,7 +141,7 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     defaultPaymentMethodId: null,
     secureCardUrl: null,
     mainCharge: { ...DEFAULT_MAIN_CHARGE },
-    deposit: { ...DEFAULT_DEPOSIT },
+    deposit: { ...DEFAULT_DEPOSIT, amount: prices.deposit },
     extraCharges: [],
   };
 
@@ -256,6 +260,7 @@ export async function listForAdmin(): Promise<Booking[]> {
 export type Availability = {
   season: { start: string; end: string };
   minNights: number;
+  prices: Prices;
   /** Datoperioder gjesten ikke kan velge (bekreftede bookinger + Google-kalender). */
   blocked: { start: string; end: string }[];
   /** Ubehandlede forespørsler – vises svakere, men blokkerer ikke valget. */
@@ -266,7 +271,7 @@ export async function getAvailability(): Promise<Availability> {
   const bookings = await loadAllBookings();
   const confirmed = bookings.filter((b) => b.status === "confirmed");
   const pending = bookings.filter((b) => b.status === "pending");
-  const blockedRanges = await getStore().listBlockedRanges();
+  const [blockedRanges, prices] = await Promise.all([getStore().listBlockedRanges(), getPrices()]);
 
   let googleBusy: { start: string; end: string }[] = [];
   try {
@@ -278,6 +283,7 @@ export async function getAvailability(): Promise<Availability> {
   return {
     season: { start: SEASON_START, end: SEASON_END },
     minNights: MIN_NIGHTS,
+    prices,
     blocked: [
       ...confirmed.map((b) => ({ start: b.checkIn, end: b.checkOut })),
       ...blockedRanges.map((r) => ({ start: r.start, end: r.end })),
@@ -440,7 +446,7 @@ export async function manageDeposit(
       lastError: null,
       ...(action === "hold" ? { heldAt: new Date().toISOString() } : {}),
       ...(action !== "hold" ? { resolvedAt: new Date().toISOString() } : {}),
-      ...(action === "capture" ? { capturedAmount: amount ?? booking.pricing.total } : {}),
+      ...(action === "capture" ? { capturedAmount: amount ?? booking.deposit.amount } : {}),
     },
   };
   await store.updateBooking(bookingId, patch);

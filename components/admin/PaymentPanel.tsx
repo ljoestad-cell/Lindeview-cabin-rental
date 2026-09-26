@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DEPOSIT_AMOUNT, DEPOSIT_HOLD_DAYS } from "@/lib/config";
+import { DEPOSIT_HOLD_DAYS } from "@/lib/config";
 import { formatEur } from "@/lib/pricing";
 import type { Booking } from "@/lib/types";
 
@@ -22,7 +22,7 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [captureAmount, setCaptureAmount] = useState(String(DEPOSIT_AMOUNT));
+  const [captureAmount, setCaptureAmount] = useState(String(booking.deposit.amount));
   const [extraAmount, setExtraAmount] = useState("");
   const [extraDesc, setExtraDesc] = useState("");
 
@@ -112,7 +112,7 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
 
       {/* Depositum */}
       <div className="space-y-1.5 border-t border-line pt-3">
-        <p className="font-medium text-foreground">Depositum ({formatEur(DEPOSIT_AMOUNT)})</p>
+        <p className="font-medium text-foreground">Depositum ({formatEur(booking.deposit.amount)})</p>
         {booking.deposit.status === "none" && (
           <>
             <p className="text-muted">Reserveres automatisk på utsjekksdagen.</p>
@@ -137,7 +137,7 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
                 onChange={(e) => setCaptureAmount(e.target.value)}
                 type="number"
                 min={1}
-                max={DEPOSIT_AMOUNT}
+                max={booking.deposit.amount}
                 className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
               />
               <SmallButton
@@ -159,7 +159,7 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
         )}
         {booking.deposit.status === "captured" && (
           <p className="text-emerald-700">
-            Trukket {formatEur(booking.deposit.capturedAmount ?? DEPOSIT_AMOUNT)}
+            Trukket {formatEur(booking.deposit.capturedAmount ?? booking.deposit.amount)}
             {booking.deposit.resolvedAt && ` (${booking.deposit.resolvedAt.slice(0, 10)})`}.
           </p>
         )}

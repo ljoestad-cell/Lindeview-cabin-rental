@@ -33,15 +33,26 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 Nettsiden har en bookingflyt (`/book`) og et admin-panel (`/admin`) for å
 godkjenne/avslå forespørsler. Faste regler ligger i
-[lib/config.ts](lib/config.ts) — pris, rengjøringsgebyr, sesong, minimum
-opphold og prisen på tilleggene under.
+[lib/config.ts](lib/config.ts) — sesong, minimum opphold, maks antall
+tillegg og standardprisene.
+
+### Priser
+
+Alle priser endres under **Priser** i admin (`/admin/priser`): pris per natt,
+rengjøringsgebyr, depositum og prisen på hvert tillegg. De lagres i samme
+lager som bookingene (Redis i produksjon), så endringer gjelder med en gang
+uten ny deploy. Til du har lagret noe der, brukes standardprisene fra
+[lib/config.ts](lib/config.ts).
+
+Nye priser gjelder kun nye bookingforespørsler. Bookinger som allerede er
+sendt inn beholder prisen og depositumet gjesten så da de sendte forespørselen.
 
 ### Tillegg som påvirker prisen
 
 Gjesten velger antall (0 = ikke valgt) for tre tillegg på `/book`, fast pris
-pr. booking (ikke pr. natt):
+pr. booking (ikke pr. natt). Prisene settes under «Priser» i admin:
 
-| Tillegg | Maks antall | Pris |
+| Tillegg | Maks antall | Standardpris |
 |---|---|---|
 | Lading av el-bil | 4 | 60 EUR pr. bil |
 | Kjæledyr | 4 | 60 EUR pr. dyr |

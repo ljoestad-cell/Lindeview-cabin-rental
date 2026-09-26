@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BEDDING_MAX, BEDDING_PRICE, EV_CHARGER_MAX, EV_CHARGER_PRICE, MAX_GUESTS, MIN_NIGHTS, PET_MAX, PET_PRICE } from "@/lib/config";
+import { BEDDING_MAX, EV_CHARGER_MAX, MAX_GUESTS, MIN_NIGHTS, PET_MAX } from "@/lib/config";
 import type { DateRange } from "@/lib/dates";
-import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras } from "@/lib/pricing";
+import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras, type Prices } from "@/lib/pricing";
 import BookingCalendar from "@/components/booking/BookingCalendar";
 import PriceSummary from "@/components/booking/PriceSummary";
 import PaymentNotice from "@/components/booking/PaymentNotice";
@@ -14,6 +14,7 @@ import StayFacts from "@/components/booking/StayFacts";
 type Availability = {
   season: { start: string; end: string };
   minNights: number;
+  prices: Prices;
   blocked: DateRange[];
   tentative: DateRange[];
 };
@@ -33,6 +34,7 @@ const INPUT_CLASS =
 
 export default function BookingClient({ availability }: { availability: Availability }) {
   const router = useRouter();
+  const { prices } = availability;
   const [range, setRange] = useState<{ checkIn: string | null; checkOut: string | null }>({
     checkIn: null,
     checkOut: null,
@@ -87,7 +89,7 @@ export default function BookingClient({ availability }: { availability: Availabi
   }
 
   if (success && range.checkIn && range.checkOut) {
-    const { total } = quote(range.checkIn, range.checkOut, extras);
+    const { total } = quote(prices, range.checkIn, range.checkOut, extras);
     return (
       <div className="rounded-2xl bg-surface p-8 text-center ring-1 ring-line">
         <p className="font-display text-2xl text-brand">Forespørselen er sendt!</p>
@@ -125,11 +127,11 @@ export default function BookingClient({ availability }: { availability: Availabi
             setError(null);
           }}
         />
-        <StayFacts />
+        <StayFacts prices={prices} />
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <PriceSummary checkIn={range.checkIn} checkOut={range.checkOut} extras={extras} />
+        <PriceSummary prices={prices} checkIn={range.checkIn} checkOut={range.checkOut} extras={extras} />
 
         <div className="space-y-4 rounded-2xl bg-surface p-6 ring-1 ring-line">
           <Field label="Navn">
@@ -184,7 +186,7 @@ export default function BookingClient({ availability }: { availability: Availabi
           <QuantityField
             label="Lading av el-bil"
             description="Antall biler"
-            pricePerUnit={EV_CHARGER_PRICE}
+            pricePerUnit={prices.evCharger}
             max={EV_CHARGER_MAX}
             value={extras.evChargers}
             onChange={(v) => setExtras({ ...extras, evChargers: v })}
@@ -192,7 +194,7 @@ export default function BookingClient({ availability }: { availability: Availabi
           <QuantityField
             label="Vi har med kjæledyr"
             description="Antall dyr"
-            pricePerUnit={PET_PRICE}
+            pricePerUnit={prices.pet}
             max={PET_MAX}
             value={extras.pets}
             onChange={(v) => setExtras({ ...extras, pets: v })}
@@ -200,7 +202,7 @@ export default function BookingClient({ availability }: { availability: Availabi
           <QuantityField
             label="Leie av sengetøy & håndklær"
             description="Antall sett"
-            pricePerUnit={BEDDING_PRICE}
+            pricePerUnit={prices.bedding}
             max={BEDDING_MAX}
             value={extras.bedding}
             onChange={(v) => setExtras({ ...extras, bedding: v })}
@@ -208,7 +210,7 @@ export default function BookingClient({ availability }: { availability: Availabi
           <div className="h-1" />
         </div>
 
-        <PaymentNotice />
+        <PaymentNotice deposit={prices.deposit} />
 
         {error && (
           <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>

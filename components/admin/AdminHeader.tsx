@@ -15,12 +15,18 @@ export default function AdminHeader() {
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line pb-6">
-      <nav className="flex gap-5 text-sm font-medium">
+      <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium">
         <Link
           href="/admin"
           className={pathname === "/admin" ? "text-brand" : "text-muted hover:text-brand"}
         >
           Kalender og bookinger
+        </Link>
+        <Link
+          href="/admin/priser"
+          className={pathname === "/admin/priser" ? "text-brand" : "text-muted hover:text-brand"}
+        >
+          Priser
         </Link>
         <Link
           href="/admin/account"

@@ -1,12 +1,13 @@
-import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras } from "@/lib/pricing";
+import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras, type Prices } from "@/lib/pricing";
 
 type Props = {
+  prices: Prices;
   checkIn: string | null;
   checkOut: string | null;
   extras?: BookingExtras;
 };
 
-export default function PriceSummary({ checkIn, checkOut, extras = DEFAULT_EXTRAS }: Props) {
+export default function PriceSummary({ prices, checkIn, checkOut, extras = DEFAULT_EXTRAS }: Props) {
   if (!checkIn || !checkOut) {
     return (
       <div className="rounded-2xl bg-surface p-6 ring-1 ring-line">
@@ -26,7 +27,7 @@ export default function PriceSummary({ checkIn, checkOut, extras = DEFAULT_EXTRA
     petTotal,
     beddingTotal,
     total,
-  } = quote(checkIn, checkOut, extras);
+  } = quote(prices, checkIn, checkOut, extras);
 
   return (
     <div className="rounded-2xl bg-surface p-6 ring-1 ring-line">

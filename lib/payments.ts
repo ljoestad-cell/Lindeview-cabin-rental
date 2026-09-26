@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import { CURRENCY, DEPOSIT_AMOUNT } from "@/lib/config";
+import { CURRENCY } from "@/lib/config";
 import { getStripe, isStripeConfigured, siteUrl } from "@/lib/stripe";
 import type { Booking } from "@/lib/types";
 
@@ -118,7 +118,7 @@ export async function chargeMainAmount(booking: Booking): Promise<PaymentResult>
 
 /** Reserverer (autoriserer, uten å trekke) depositumet – kalles på utsjekksdagen. */
 export async function holdDeposit(booking: Booking): Promise<PaymentResult> {
-  return offSessionCharge(booking, DEPOSIT_AMOUNT, "deposit", { capture_method: "manual" });
+  return offSessionCharge(booking, booking.deposit.amount, "deposit", { capture_method: "manual" });
 }
 
 /** Trekker et reservert depositum – helt eller delvis (f.eks. ved skade). */
