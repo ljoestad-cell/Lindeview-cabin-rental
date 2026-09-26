@@ -1,5 +1,6 @@
 import { JWT } from "google-auth-library";
 import type { DateRange } from "@/lib/dates";
+import { PROPERTY_NAME } from "@/lib/property";
 import type { Booking } from "@/lib/types";
 
 /**
@@ -89,7 +90,7 @@ export async function upsertEvent(booking: Booking): Promise<string | null> {
   }
 
   const body = {
-    summary: `Lindeview – ${booking.name} (${booking.status === "confirmed" ? "bekreftet" : "forespørsel"})`,
+    summary: `${PROPERTY_NAME} – ${booking.name} (${booking.status === "confirmed" ? "bekreftet" : "forespørsel"})`,
     description: `${booking.guests} gjester · ${booking.email} · ${booking.phone}\n\n${booking.message}`,
     start: { date: booking.checkIn },
     end: { date: booking.checkOut },

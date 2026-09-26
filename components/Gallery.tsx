@@ -131,10 +131,6 @@ export default function Gallery() {
               Et innblikk i Lindeview
             </h2>
           </div>
-          <p className="max-w-sm text-sm leading-relaxed text-muted">
-            Flere bilder og en fullstendig omvisning kommer snart. Ta kontakt
-            for flere bilder i mellomtiden.
-          </p>
         </div>
 
         <div className="mt-14 grid auto-rows-[220px] grid-cols-2 gap-4 sm:grid-cols-4">

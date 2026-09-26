@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { hasValidSession } from "@/lib/auth";
 import { listBlockedRanges, listForAdmin } from "@/lib/bookings";
+import { PROPERTY_NAME } from "@/lib/property";
 import AdminCalendar from "@/components/admin/AdminCalendar";
 import AdminHeader from "@/components/admin/AdminHeader";
 import BookingsTable from "@/components/admin/BookingsTable";
@@ -17,7 +18,7 @@ export default async function AdminPage() {
   return (
     <main className="min-h-screen bg-background px-6 py-16 sm:px-10">
       <div className="mx-auto max-w-5xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-accent">Lindeview</p>
+        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-accent">{PROPERTY_NAME}</p>
         <h1 className="mt-3 font-display text-3xl text-brand">Administrer bookinger</h1>
 
         <div className="mt-8">

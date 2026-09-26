@@ -2,9 +2,10 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { PROPERTY_NAME } from "@/lib/property";
 
 export const metadata: Metadata = {
-  title: "Kortet er sikret | Lindeview",
+  title: `Kortet er sikret | ${PROPERTY_NAME}`,
 };
 
 export default function SecuredPage() {

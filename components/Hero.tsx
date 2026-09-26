@@ -1,11 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BedDouble, Bath, Users, Fish, EvCharger, ChefHat, Laptop, Flame, Router, Kayak } from "lucide-react";
+import { BATHROOMS, BEDROOMS, GUEST_CAPACITY, LOCATION_LABEL, PROPERTY_NAME } from "@/lib/property";
 
 const stats = [
-  { icon: Users, label: "10 gjester" },
-  { icon: BedDouble, label: "4 soverom" },
-  { icon: Bath, label: "2 bad" },
+  { icon: Users, label: `${GUEST_CAPACITY} gjester` },
+  { icon: BedDouble, label: `${BEDROOMS} soverom` },
+  { icon: Bath, label: `${BATHROOMS} bad` },
   { icon: Fish, label: "Fiskekort inkludert" },
   { icon: EvCharger, label: "El-bil lader" },
   { icon: ChefHat, label: "Gourmet kjøkken" },
@@ -20,7 +21,7 @@ export default function Hero() {
     <section className="relative flex min-h-[92vh] w-full items-end overflow-hidden">
       <Image
         src="/images/galleri/cabin-front-close.jpeg"
-        alt="Lindeview sett forfra, med staselig gavl og store vindusflater mot himmelen"
+        alt={`${PROPERTY_NAME} sett forfra, med staselig gavl og store vindusflater mot himmelen`}
         fill
         priority
         className="object-cover"
@@ -30,10 +31,10 @@ export default function Hero() {
 
       <div className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-16 pt-40 sm:px-10 sm:pb-20">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-accent">
-          Hillestadheia · Eksklusiv fjellhytte
+          {LOCATION_LABEL} · Eksklusiv fjellhytte
         </p>
         <h1 className="mt-4 max-w-2xl font-display text-5xl leading-[1.05] text-white sm:text-6xl lg:text-7xl">
-          Lindeview
+          {PROPERTY_NAME}
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/90">
           Innerst i en fredelig dal, langt fra trafikkerte veier, ligger en

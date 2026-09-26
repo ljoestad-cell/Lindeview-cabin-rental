@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Fraunces } from "next/font/google";
+import { LOCATION_LABEL, PROPERTY_NAME } from "@/lib/property";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,9 +16,8 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Lindeview | Eksklusiv villmarkshytte på Hillestadheia",
-  description:
-    "Lindeview er en eksklusiv villmarkshytte på Hillestadheia — fredelig beliggenhet, gourmetkjøkken og fiskekort inkludert. Book din neste hyttetur.",
+  title: `${PROPERTY_NAME} | Eksklusiv villmarkshytte på ${LOCATION_LABEL}`,
+  description: `${PROPERTY_NAME} er en eksklusiv villmarkshytte på ${LOCATION_LABEL} — fredelig beliggenhet, gourmetkjøkken og fiskekort inkludert. Book din neste hyttetur.`,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

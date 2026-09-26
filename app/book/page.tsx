@@ -5,10 +5,11 @@ import Footer from "@/components/Footer";
 import BookingClient from "@/components/booking/BookingClient";
 import { getAvailability } from "@/lib/bookings";
 import { FAMILY_ONLY_NOTICE, SEASON_LABEL } from "@/lib/config";
+import { PROPERTY_NAME } from "@/lib/property";
 
 export const metadata: Metadata = {
-  title: "Book Lindeview | Bookingforespørsel",
-  description: "Velg datoer og send en bookingforespørsel for Lindeview.",
+  title: `Book ${PROPERTY_NAME} | Bookingforespørsel`,
+  description: `Velg datoer og send en bookingforespørsel for ${PROPERTY_NAME}.`,
 };
 
 // Tilgjengelighet må alltid være ferskt, aldri statisk generert eller cachet.
