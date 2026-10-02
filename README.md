@@ -106,8 +106,25 @@ lokalt). Grensene settes i [lib/rate-limit.ts](lib/rate-limit.ts).
 `robots.txt`, `sitemap.xml`, et delingsbilde (`app/opengraph-image.jpg`) og
 strukturerte data (schema.org `VacationRental`) genereres automatisk. Admin og
 API er stengt for søkemotorer. Adressene bygges fra `NEXT_PUBLIC_SITE_URL`,
-eller fra Vercels produksjons-URL hvis den ikke er satt. Sett
-`NEXT_PUBLIC_SITE_URL` når siden får eget domene.
+eller fra Vercels produksjons-URL hvis den ikke er satt.
+
+### Domene
+
+Siden ligger på **https://www.lindeview.no** (domenet er kjøpt hos
+Domeneshop, DNS styres der under **DNS-pekere → Vis avanserte
+innstillinger**). `lindeview.no` sender videre (308) til `www`.
+
+| Vertsnavn | Type | Verdi | Brukes av |
+|---|---|---|---|
+| *(tomt)* | A | `216.198.79.1` | Vercel |
+| `www` | CNAME | `….vercel-dns-017.com` (se Vercel → Domains) | Vercel |
+| `send`, `rsend` | CNAME | `….forge.rmta.net` | Resend (sending) |
+| `resend._domainkey` | TXT | DKIM-nøkkel fra Resend | Resend |
+| `_dmarc` | TXT | `v=DMARC1; p=none` | e-post |
+
+`NEXT_PUBLIC_SITE_URL=https://www.lindeview.no` er satt i Vercel
+(Production). Domenet har ingen innkommende e-post — kontaktadressen på
+siden er eierens egen.
 
 ### Admin-kalender og datoblokkering
 
@@ -202,9 +219,9 @@ Gjeste-e-post krever et verifisert domene (sandkassen sender bare til
 kontoens egen adresse):
 
 1. Resend → **Domains → Add domain** → `lindeview.no` (region EU).
-2. Legg inn DNS-postene Resend viser (SPF/MX på `send.lindeview.no`, DKIM
-   `resend._domainkey`, gjerne DMARC) hos domeneleverandøren, og vent på
-   «Verified».
+2. Legg inn DNS-postene Resend viser (CNAME på `send` og `rsend`, TXT på
+   `resend._domainkey`) hos Domeneshop, og vent på «Verified». Se
+   «Domene» over for gjeldende oppsett.
 3. Sett `RESEND_FROM_EMAIL=Lindeview <booking@lindeview.no>` (i tillegg til
    `RESEND_API_KEY`) i Vercel og `.env.local`, og redeploy.
 
