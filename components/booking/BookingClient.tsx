@@ -145,7 +145,10 @@ export default function BookingClient({ availability }: { availability: Availabi
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        <PriceSummary prices={prices} checkIn={range.checkIn} checkOut={range.checkOut} extras={extras} />
+        {/* Desktop: prisen øverst i sidekolonnen, synlig ved siden av kalenderen. */}
+        <div className="hidden lg:block">
+          <PriceSummary prices={prices} checkIn={range.checkIn} checkOut={range.checkOut} extras={extras} />
+        </div>
 
         <div className="space-y-4 rounded-2xl bg-surface p-6 ring-1 ring-line">
           <Field label="Navn">
@@ -233,6 +236,11 @@ export default function BookingClient({ availability }: { availability: Availabi
             onChange={(v) => setExtras({ ...extras, bedding: v })}
           />
           <div className="h-1" />
+        </div>
+
+        {/* Mobil: skjemaet ligger under kalenderen, så prisen vises rett etter tilleggene som påvirker den. */}
+        <div className="lg:hidden">
+          <PriceSummary prices={prices} checkIn={range.checkIn} checkOut={range.checkOut} extras={extras} />
         </div>
 
         <PaymentNotice deposit={prices.deposit} />
