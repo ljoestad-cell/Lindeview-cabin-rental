@@ -178,7 +178,7 @@ sende e-post:
 2. Lag en API-nøkkel (**API Keys** → **Create API Key**).
 3. Sett i miljøvariablene: `RESEND_API_KEY`.
 4. (Valgfritt, krever verifisert domene) `RESEND_FROM_EMAIL` for å sende fra
-   f.eks. `Lindeview <post@lindeview.no>` i stedet for standard
+   f.eks. `Lindeview <booking@lindeview.no>` i stedet for standard
    `onboarding@resend.dev`.
 
 **Til gjesten (på engelsk):**
@@ -194,8 +194,9 @@ sende e-post:
 
 Har lenken utløpt: trykk «Generer ny lenke» og deretter **«Send e-post til
 gjest»** i betalingspanelet — ny lenke sender ikke e-post av seg selv. Admin
-viser når e-postene ble sendt. Gjestens svar går til `CONTACT_EMAIL`
-(post@lindeview.no).
+viser når e-postene ble sendt. Gjestens svar går til `OWNER_EMAIL`
+(ljoestad@gmail.com) — lindeview.no tar ikke imot e-post, avsenderadressen
+er bare et navn.
 
 Gjeste-e-post krever et verifisert domene (sandkassen sender bare til
 kontoens egen adresse):

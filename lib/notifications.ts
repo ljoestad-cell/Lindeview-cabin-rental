@@ -1,6 +1,6 @@
 import { CHARGE_DAYS_BEFORE_CHECKIN, DEPOSIT_HOLD_DAYS } from "@/lib/config";
 import { addDays, fromIso, today } from "@/lib/dates";
-import { CONTACT_EMAIL, OWNER_EMAIL, OWNER_NAME, OWNER_PHONE_DISPLAY, PROPERTY_NAME } from "@/lib/property";
+import { OWNER_EMAIL, OWNER_NAME, OWNER_PHONE_DISPLAY, PROPERTY_NAME } from "@/lib/property";
 import { siteUrl } from "@/lib/site";
 import type { Booking } from "@/lib/types";
 
@@ -88,7 +88,8 @@ async function sendGuestEmail(booking: Booking, email: GuestEmail): Promise<bool
     return false;
   }
   if (!booking.email) return false;
-  await sendEmail(apiKey, { to: booking.email, replyTo: CONTACT_EMAIL, ...email });
+  // Svar går rett til eierens innboks – lindeview.no har ingen innkommende e-post.
+  await sendEmail(apiKey, { to: booking.email, replyTo: OWNER_EMAIL, ...email });
   return true;
 }
 

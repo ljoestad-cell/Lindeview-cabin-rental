@@ -5,7 +5,7 @@ import {
   notifyGuestOfApproval,
   notifyGuestOfConfirmation,
 } from "@/lib/notifications";
-import { CONTACT_EMAIL } from "@/lib/property";
+import { OWNER_EMAIL } from "@/lib/property";
 import type { Booking } from "@/lib/types";
 
 function makeBooking(overrides: Partial<Booking> = {}): Booking {
@@ -88,7 +88,7 @@ describe("sending til gjesten", () => {
     vi.unstubAllGlobals();
   });
 
-  it("sender til gjestens adresse fra verifisert avsender, med svar til kontaktadressen", async () => {
+  it("sender til gjestens adresse fra verifisert avsender, med svar til eieren", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "Lindeview <booking@lindeview.no>");
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
@@ -99,7 +99,7 @@ describe("sending til gjesten", () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.to).toBe("anna@example.com");
     expect(body.from).toBe("Lindeview <booking@lindeview.no>");
-    expect(body.reply_to).toBe(CONTACT_EMAIL);
+    expect(body.reply_to).toBe(OWNER_EMAIL);
     expect(body.html).toContain("<!doctype html>");
   });
 
