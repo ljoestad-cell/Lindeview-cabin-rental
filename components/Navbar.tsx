@@ -31,7 +31,7 @@ export default function Navbar() {
 
   return (
     <header className="absolute inset-x-0 top-0 z-50">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-6 py-6 sm:px-10">
+      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-6 min-[360px]:px-6 sm:px-10">
         <Link href={isHome ? "#" : "/"} className={`font-display text-2xl tracking-wide ${text}`}>
           {PROPERTY_NAME}
         </Link>
@@ -52,7 +52,9 @@ export default function Navbar() {
               href={isHome ? "#bestill" : "/book"}
               className="rounded-full bg-accent px-3.5 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-accent-dark sm:px-5 sm:text-sm"
             >
-              Sjekk tilgjengelighet
+              {/* Hele teksten får ikke plass ved siden av logo og meny på de minste telefonene (<360px). */}
+              <span className="min-[360px]:hidden">Bestill</span>
+              <span className="hidden min-[360px]:inline">Sjekk tilgjengelighet</span>
             </a>
           )}
           <button

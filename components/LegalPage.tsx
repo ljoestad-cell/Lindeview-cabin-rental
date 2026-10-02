@@ -26,7 +26,7 @@ export default function LegalPage({
             ← Tilbake til forsiden
           </Link>
           <p className="mt-6 text-sm font-semibold uppercase tracking-[0.3em] text-accent">{eyebrow}</p>
-          <h1 className="mt-4 font-display text-4xl leading-tight text-brand sm:text-5xl">{title}</h1>
+          <h1 className="mt-4 font-display text-3xl leading-tight text-brand break-words hyphens-auto min-[400px]:text-4xl sm:text-5xl">{title}</h1>
           <p className="mt-3 text-sm text-muted">Sist oppdatert {updatedLabel}</p>
           <div className="mt-10 space-y-8 text-base leading-relaxed text-foreground">{children}</div>
         </article>

@@ -21,7 +21,7 @@ export default function Footer() {
               standard, samlet på ett sted.
             </p>
           </div>
-          <div className="h-56 w-80 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/15">
+          <div className="h-56 w-full max-w-80 shrink-0 overflow-hidden rounded-xl ring-1 ring-white/15">
             <iframe
               src={`https://www.google.com/maps?q=${encodeURIComponent(MAP_QUERY)}&z=14&t=k&output=embed`}
               width="100%"
