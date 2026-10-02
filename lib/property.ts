@@ -18,7 +18,8 @@ export const OWNER_EMAIL = "ljoestad@gmail.com";
 export const OWNER_PHONE_DISPLAY = "+47 90 59 18 20";
 /** Samme nummer, uten mellomrom — for tel:/Resend-avsenderadresse o.l. */
 export const OWNER_PHONE_TEL = "+4790591820";
-export const CONTACT_EMAIL = "post@lindeview.no";
+/** Vises offentlig (footer, vilkår, personvern). lindeview.no har ingen innkommende e-post, så dette er eierens egen innboks. */
+export const CONTACT_EMAIL = OWNER_EMAIL;
 
 export const GUEST_CAPACITY = 10;
 export const BEDROOMS = 4;
