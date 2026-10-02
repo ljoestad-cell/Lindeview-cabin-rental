@@ -165,9 +165,9 @@ fungerer for innlogging. Siden har også en plassholder for
 topartsverifisering (MFA) — ikke funksjonell ennå, men datamodellen
 (`mfaEnabled`/`mfaSecret`) er klar for det.
 
-### E-postvarsel om nye forespørsler
+### E-post (Resend)
 
-Eieren varsles på **ljoestad@gmail.com** (satt i [lib/property.ts](lib/property.ts) som
+**Til eieren:** Eieren varsles på **ljoestad@gmail.com** (satt i [lib/property.ts](lib/property.ts) som
 `OWNER_EMAIL`) hver gang noen sender en bookingforespørsel. Uten oppsett skjer
 ingenting (forespørselen lagres og vises i `/admin` uansett) — for å faktisk
 sende e-post:
@@ -180,6 +180,35 @@ sende e-post:
 4. (Valgfritt, krever verifisert domene) `RESEND_FROM_EMAIL` for å sende fra
    f.eks. `Lindeview <post@lindeview.no>` i stedet for standard
    `onboarding@resend.dev`.
+
+**Til gjesten (på engelsk):**
+
+1. *Booking approved* — sendes automatisk når du bekrefter en booking i
+   `/admin`: datoer, prisoversikt, lenke for å sikre kortet (gyldig 24 t),
+   når beløpet trekkes, depositum, og at endelig bekreftelse kommer når
+   betalingen er verifisert.
+2. *Booking confirmed* — sendes automatisk (én gang) når gjesten har sikret
+   kortet via Stripe: kort registrert, booking bekreftet, og når beløpet
+   trekkes — eller at det er trukket, ved sen booking. Sendes ikke hvis en
+   umiddelbar belastning feiler (da varsles eieren i stedet).
+
+Har lenken utløpt: trykk «Generer ny lenke» og deretter **«Send e-post til
+gjest»** i betalingspanelet — ny lenke sender ikke e-post av seg selv. Admin
+viser når e-postene ble sendt. Gjestens svar går til `CONTACT_EMAIL`
+(post@lindeview.no).
+
+Gjeste-e-post krever et verifisert domene (sandkassen sender bare til
+kontoens egen adresse):
+
+1. Resend → **Domains → Add domain** → `lindeview.no` (region EU).
+2. Legg inn DNS-postene Resend viser (SPF/MX på `send.lindeview.no`, DKIM
+   `resend._domainkey`, gjerne DMARC) hos domeneleverandøren, og vent på
+   «Verified».
+3. Sett `RESEND_FROM_EMAIL=Lindeview <booking@lindeview.no>` (i tillegg til
+   `RESEND_API_KEY`) i Vercel og `.env.local`, og redeploy.
+
+Uten `RESEND_FROM_EMAIL` sendes ingen gjeste-e-post — lenken vises i admin
+som før, og eier-varslene virker som vanlig.
 
 ### Lagring av bookinger
 
@@ -206,9 +235,8 @@ Bookinger fungerer helt uten dette — sett opp når dere er klare:
 Alle priser er i **EUR**, og settes under «Priser» i admin. Betalingsflyten:
 
 1. Du bekrefter en booking i `/admin` → en secure-card-lenke lages automatisk
-   (Stripe Checkout, "sikre kort"-modus — ingen belastning). Lenken **vises i
-   admin** for deg å sende til gjesten (SMS/e-post) inntil gjeste-e-post er
-   satt opp (se Resend-seksjonen over — krever et verifisert domene).
+   (Stripe Checkout, "sikre kort"-modus — ingen belastning). Lenken **sendes på
+   e-post** til gjesten (se Resend-seksjonen over), og vises i admin.
 2. Gjesten fyller inn kortet sitt. Ingenting belastes ennå.
 3. **Hovedbeløpet** (leie + utvask) trekkes automatisk 30 dager før innsjekk
    — eller med en gang, hvis bookingen ble bekreftet senere enn det.

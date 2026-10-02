@@ -78,14 +78,31 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
                 </button>
               </div>
             )}
-            <SmallButton busy={busy === "link"} onClick={() => run("link", `${base}/payment-link`)}>
-              {booking.secureCardUrl ? "Generer ny lenke" : "Lag betalingslenke"}
-            </SmallButton>
+            <div className="flex flex-wrap items-center gap-2">
+              <SmallButton busy={busy === "link"} onClick={() => run("link", `${base}/payment-link`)}>
+                {booking.secureCardUrl ? "Generer ny lenke" : "Lag betalingslenke"}
+              </SmallButton>
+              {booking.secureCardUrl && (
+                <SmallButton busy={busy === "email"} onClick={() => run("email", `${base}/guest-email`)}>
+                  Send e-post til gjest
+                </SmallButton>
+              )}
+            </div>
+            {booking.guestEmails.approvalSentAt && (
+              <p className="text-xs text-muted">
+                Betalingslenke sendt på e-post {booking.guestEmails.approvalSentAt.slice(0, 10)}
+              </p>
+            )}
           </>
         )}
         {booking.mainCharge.status === "card_saved" && (
           <>
             <StatusBadge variant="green">Kort sikret</StatusBadge>
+            {booking.guestEmails.confirmationSentAt && (
+              <p className="text-xs text-muted">
+                Bekreftelse sendt til gjesten {booking.guestEmails.confirmationSentAt.slice(0, 10)}
+              </p>
+            )}
             <p className="text-muted">
               Belastes automatisk {booking.mainCharge.chargeAt}, eller belast nå:
             </p>
@@ -98,6 +115,11 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
           <p className="text-emerald-700">
             Betalt {formatEur(booking.pricing.total)} ✓{" "}
             {booking.mainCharge.paidAt && `(${booking.mainCharge.paidAt.slice(0, 10)})`}
+          </p>
+        )}
+        {booking.mainCharge.status === "paid" && booking.guestEmails.confirmationSentAt && (
+          <p className="text-xs text-muted">
+            Bekreftelse sendt til gjesten {booking.guestEmails.confirmationSentAt.slice(0, 10)}
           </p>
         )}
         {booking.mainCharge.status === "failed" && (

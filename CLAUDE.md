@@ -21,8 +21,9 @@ gjennomgang av arkitektur og tredjepartsvalg.
 ## Tredjepartsstatus (kan endre seg — sjekk før du antar)
 
 - **Stripe**: koblet til, kjører i testmodus.
-- **Resend**: sender kun til eierens egen e-post (sandkasse, ikke
-  domeneverifisert) — gjeste-e-post er ikke automatisert ennå.
+- **Resend**: eiervarsler + gjeste-e-post (godkjent med betalingslenke,
+  bekreftet når kortet er sikret). Gjeste-e-post sendes bare når
+  `RESEND_FROM_EMAIL` på verifisert domene (lindeview.no) er satt.
 - **Google Calendar**: kode klar, ikke koblet til (venter på at eieren
   oppretter service-konto).
 - **MFA**: datamodell og UI-plassholder finnes i "Min konto", ingen faktisk

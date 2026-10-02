@@ -51,7 +51,8 @@ export default function PrivacyPage() {
             lagres.
           </li>
           <li>
-            <strong>Resend</strong>: utsending av e-postvarsler om bookinger.
+            <strong>Resend</strong>: utsending av e-post om bookingen (godkjenning, betalingslenke og
+            bekreftelse) til deg, og varsler til eieren.
           </li>
           <li>
             <strong>Airbnb</strong>: bare hvilke datoer som er opptatt, merket «Reservert». Airbnb får ikke navn

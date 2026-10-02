@@ -19,7 +19,14 @@ import { policyRefundAmount } from "@/lib/cancellation";
 import { findConflict } from "@/lib/conflicts";
 import { addDays, addMonths, isIsoDate, isWithinSeason, nightsBetween, rangesOverlap, today } from "@/lib/dates";
 import { parseIcsBusyRanges } from "@/lib/ical";
-import { notifyOwnerOfBooking, notifyOwnerOfDoubleBooking, notifyOwnerOfPaymentIssue } from "@/lib/notifications";
+import {
+  guestEmailEnabled,
+  notifyGuestOfApproval,
+  notifyGuestOfConfirmation,
+  notifyOwnerOfBooking,
+  notifyOwnerOfDoubleBooking,
+  notifyOwnerOfPaymentIssue,
+} from "@/lib/notifications";
 import * as payments from "@/lib/payments";
 import { isStripeConfigured } from "@/lib/stripe";
 import { getPrices } from "@/lib/prices";
@@ -27,6 +34,7 @@ import { DEFAULT_EXTRAS, quote, type BookingExtras, type Prices } from "@/lib/pr
 import { getStore } from "@/lib/store";
 import {
   DEFAULT_DEPOSIT,
+  DEFAULT_GUEST_EMAILS,
   DEFAULT_MAIN_CHARGE,
   type BlockedRange,
   type Booking,
@@ -55,6 +63,7 @@ function normalizeBooking(booking: Booking): Booking {
     // Bookinger fra før depositum ble lagret på bookingen fikk standardbeløpet.
     deposit: { ...DEFAULT_DEPOSIT, ...booking.deposit, amount: booking.deposit?.amount ?? DEPOSIT_AMOUNT },
     extraCharges: booking.extraCharges ?? [],
+    guestEmails: { ...DEFAULT_GUEST_EMAILS, ...booking.guestEmails },
     extras: booking.extras ?? { ...DEFAULT_EXTRAS },
     termsVersion: booking.termsVersion ?? null,
     termsAcceptedAt: booking.termsAcceptedAt ?? null,
@@ -149,6 +158,7 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     mainCharge: { ...DEFAULT_MAIN_CHARGE },
     deposit: { ...DEFAULT_DEPOSIT, amount: prices.deposit },
     extraCharges: [],
+    guestEmails: { ...DEFAULT_GUEST_EMAILS },
     termsVersion: TERMS_VERSION,
     termsAcceptedAt: new Date().toISOString(),
     anonymizedAt: null,
@@ -195,6 +205,43 @@ async function refreshSecureCardLink(booking: Booking): Promise<Booking> {
 /** Henter én booking (admin-bruk). Returnerer null hvis den ikke finnes. */
 export async function getBookingById(id: string): Promise<Booking | null> {
   return loadBooking(id);
+}
+
+/** Sender e-post 1 (godkjent + betalingslenke) og noterer tidspunktet. Kaster ved feil fra Resend. */
+async function sendApprovalEmail(booking: Booking): Promise<Booking> {
+  const sent = await notifyGuestOfApproval(booking);
+  if (!sent) return booking;
+  const guestEmails = { ...booking.guestEmails, approvalSentAt: new Date().toISOString() };
+  await getStore().updateBooking(booking.id, { guestEmails });
+  return { ...booking, guestEmails };
+}
+
+/**
+ * Admin: send e-post 1 på nytt – typisk etter «Generer ny lenke» (lenken
+ * utløper etter et døgn). Kaster BookingValidationError med en forklaring
+ * admin kan lese hvis e-posten ikke kan sendes.
+ */
+export async function resendApprovalEmail(id: string): Promise<Booking | null> {
+  const booking = await loadBooking(id);
+  if (!booking) return null;
+  if (booking.status !== "confirmed") {
+    throw new BookingValidationError("Bookingen må være bekreftet før gjesten kan få betalingslenken.");
+  }
+  if (booking.mainCharge.status !== "not_saved") {
+    throw new BookingValidationError("Gjesten har allerede sikret et kort.");
+  }
+  if (!booking.secureCardUrl) {
+    throw new BookingValidationError("Lag en betalingslenke først.");
+  }
+  if (!booking.email) {
+    throw new BookingValidationError("Bookingen har ingen e-postadresse.");
+  }
+  if (!guestEmailEnabled()) {
+    throw new BookingValidationError(
+      "E-post til gjester er ikke satt opp (RESEND_API_KEY og RESEND_FROM_EMAIL med verifisert domene) – se README.",
+    );
+  }
+  return sendApprovalEmail(booking);
 }
 
 /** Admin: lag en ny secure-card-lenke manuelt (sen bestilling, eller utløpt lenke). */
@@ -254,6 +301,16 @@ export async function setStatus(
       // Skal aldri velte selve bekreftelsen – admin kan lage lenken manuelt
       // etterpå via "Lag betalingslenke", som da viser feilen i klartekst.
       console.error("[bookings] Kunne ikke opprette betalingslenke ved bekreftelse:", err);
+    }
+
+    // Uten lenke (Stripe feilet/ikke satt opp) sendes ingenting – admin lager
+    // lenken manuelt og bruker «Send e-post til gjest» etterpå.
+    if (updated.secureCardUrl) {
+      try {
+        updated = await sendApprovalEmail(updated);
+      } catch (err) {
+        console.error("[bookings] Kunne ikke sende godkjennings-e-post til gjesten:", err);
+      }
     }
   }
 
@@ -403,10 +460,30 @@ export async function attachPaymentMethod(
     mainCharge: { ...booking.mainCharge, status: "card_saved" as const, chargeAt },
   };
   await store.updateBooking(bookingId, patch);
-  const updated = { ...booking, ...patch };
+  let updated: Booking = { ...booking, ...patch };
 
   if (chargeAt <= today()) {
-    await retryMainCharge(updated.id);
+    updated = (await retryMainCharge(updated.id)) ?? updated;
+  }
+
+  await sendConfirmationEmail(updated);
+}
+
+/**
+ * E-post 2: kort sikret og booking bekreftet. Sendes bare én gang (Stripe kan
+ * levere samme webhook flere ganger), og ikke hvis en umiddelbar belastning
+ * feilet – da varsles eieren i stedet, og gjesten hører fra eieren.
+ */
+async function sendConfirmationEmail(booking: Booking): Promise<void> {
+  if (booking.guestEmails.confirmationSentAt) return;
+  if (booking.mainCharge.status !== "card_saved" && booking.mainCharge.status !== "paid") return;
+  try {
+    const sent = await notifyGuestOfConfirmation(booking);
+    if (!sent) return;
+    const guestEmails = { ...booking.guestEmails, confirmationSentAt: new Date().toISOString() };
+    await getStore().updateBooking(booking.id, { guestEmails });
+  } catch (err) {
+    console.error("[bookings] Kunne ikke sende bekreftelses-e-post til gjesten:", err);
   }
 }
 

@@ -57,6 +57,16 @@ export const DEFAULT_DEPOSIT: Omit<Deposit, "amount"> = {
   lastError: null,
 };
 
+/** Når e-postene til gjesten ble sendt – vises i admin, og hindrer at bekreftelsen sendes to ganger. */
+export type GuestEmails = {
+  /** Godkjent + betalingslenke (siste gang den ble sendt). */
+  approvalSentAt: string | null;
+  /** Kort sikret, booking bekreftet – sendes bare én gang. */
+  confirmationSentAt: string | null;
+};
+
+export const DEFAULT_GUEST_EMAILS: GuestEmails = { approvalSentAt: null, confirmationSentAt: null };
+
 export type Booking = {
   id: string;
   createdAt: string; // ISO timestamp
@@ -83,6 +93,7 @@ export type Booking = {
   mainCharge: MainCharge;
   deposit: Deposit;
   extraCharges: ExtraCharge[];
+  guestEmails: GuestEmails;
 
   /** TERMS_VERSION gjesten krysset av for på /book – null på bookinger fra før vilkårene fantes. */
   termsVersion: string | null;
