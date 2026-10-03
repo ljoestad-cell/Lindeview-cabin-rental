@@ -18,8 +18,12 @@ export const CURRENCY = "EUR";
 export const DEPOSIT_AMOUNT = 1000;
 /** Hvor mange dager eieren normalt trenger til inspeksjon før depositum trekkes/frigis. */
 export const DEPOSIT_HOLD_DAYS = 5;
-/** Hovedbeløpet belastes automatisk dette antall dager før innsjekk. */
-export const CHARGE_DAYS_BEFORE_CHECKIN = 30;
+/**
+ * Hovedbeløpet belastes automatisk dette antall dager før innsjekk – første
+ * dag etter at fristen for gratis avbestilling (FULL_REFUND_DAYS) er ute, så
+ * vi aldri trekker et beløp gjesten fortsatt kan få refundert.
+ */
+export const CHARGE_DAYS_BEFORE_CHECKIN = 29;
 
 /** Kalenderen er åpen fra og med denne datoen (innsjekk). */
 export const SEASON_START = "2027-05-01";
@@ -46,10 +50,10 @@ export const BEDDING_MAX = 10;
  * Avbestilling fra gjesten (se lib/cancellation.ts og /vilkar):
  * - minst FULL_REFUND_DAYS dager før innsjekk: alt refunderes (normalt er ingenting trukket ennå)
  * - senere: ingen refusjon
- * Samme frist som når hovedbeløpet trekkes – avbestilling før trekket koster
- * altså ingenting, etter trekket refunderes ingenting.
+ * Hovedbeløpet trekkes dagen etter at fristen er ute (CHARGE_DAYS_BEFORE_CHECKIN)
+ * – avbestilling før trekket koster altså ingenting, etter trekket refunderes ingenting.
  */
-export const FULL_REFUND_DAYS = CHARGE_DAYS_BEFORE_CHECKIN;
+export const FULL_REFUND_DAYS = CHARGE_DAYS_BEFORE_CHECKIN + 1;
 
 /** Øk (ny dato) når leievilkårene på /vilkar endres – lagres på hver booking som «godtatt versjon». */
 export const TERMS_VERSION = "2026-10-03";

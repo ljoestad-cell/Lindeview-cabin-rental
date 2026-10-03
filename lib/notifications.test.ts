@@ -40,7 +40,7 @@ function makeBooking(overrides: Partial<Booking> = {}): Booking {
 }
 
 describe("buildApprovalEmail", () => {
-  it("inneholder betalingslenke, prislinjer og forfallsdato 30 dager før innsjekk", () => {
+  it("inneholder betalingslenke, prislinjer og forfallsdato 29 dager før innsjekk", () => {
     const { subject, text, html } = buildApprovalEmail(makeBooking(), "2027-01-15");
     expect(subject).toContain("Booking approved");
     expect(text).toContain("Secure your card: https://checkout.stripe.com/c/pay/test_123");
@@ -48,7 +48,7 @@ describe("buildApprovalEmail", () => {
     expect(text).toContain("EV charging (1): €60.00");
     expect(text).not.toContain("Pets");
     expect(text).toContain("Total: €2,550.00");
-    expect(text).toContain("charged automatically on Thu, 10 June 2027");
+    expect(text).toContain("charged automatically on Fri, 11 June 2027");
     expect(text).toContain("final confirmation as soon as your payment method has been verified");
     expect(text).toContain("€1,000.00");
     expect(html).toContain('href="https://checkout.stripe.com/c/pay/test_123"');
@@ -68,11 +68,11 @@ describe("buildApprovalEmail", () => {
 
 describe("buildConfirmationEmail", () => {
   it("oppgir belastningsdato når kortet bare er sikret", () => {
-    const booking = makeBooking({ mainCharge: { status: "card_saved", chargeAt: "2027-06-10" } as Booking["mainCharge"] });
+    const booking = makeBooking({ mainCharge: { status: "card_saved", chargeAt: "2027-06-11" } as Booking["mainCharge"] });
     const { subject, text } = buildConfirmationEmail(booking);
     expect(subject).toContain("Booking confirmed");
     expect(text).toContain("Your card has been registered");
-    expect(text).toContain("charged automatically on Thu, 10 June 2027");
+    expect(text).toContain("charged automatically on Fri, 11 June 2027");
   });
 
   it("bekrefter mottatt betaling når beløpet allerede er trukket", () => {

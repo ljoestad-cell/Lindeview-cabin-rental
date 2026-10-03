@@ -271,7 +271,8 @@ Alle priser er i **EUR**, og settes under «Priser» i admin. Betalingsflyten:
    (Stripe Checkout, "sikre kort"-modus — ingen belastning). Lenken **sendes på
    e-post** til gjesten (se Resend-seksjonen over), og vises i admin.
 2. Gjesten fyller inn kortet sitt. Ingenting belastes ennå.
-3. **Hovedbeløpet** (leie + utvask) trekkes automatisk 30 dager før innsjekk
+3. **Hovedbeløpet** (leie + utvask) trekkes automatisk 29 dager før innsjekk (dagen etter at fristen for gratis
+   avbestilling er ute)
    — eller med en gang, hvis bookingen ble bekreftet senere enn det.
 4. **Depositum** (standard 1000 EUR, beløpet låses på bookingen) reserveres automatisk på kortet **på
    utsjekksdagen** (ikke før innsjekk — et korthold varer bare ca. 7 dager
