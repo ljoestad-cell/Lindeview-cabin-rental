@@ -27,7 +27,7 @@ const GROUPS: { title: string; fields: Field[] }[] = [
   {
     title: "Depositum",
     fields: [
-      { key: "deposit", label: "Depositum", hint: "Reserveres på kortet ved utsjekk." },
+      { key: "deposit", label: "Depositum", hint: "Reserveres på kortet dagen før utsjekk." },
     ],
   },
 ];

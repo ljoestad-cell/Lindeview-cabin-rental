@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DEPOSIT_HOLD_DAYS } from "@/lib/config";
+import { addDays } from "@/lib/dates";
 import { formatEur } from "@/lib/pricing";
 import type { Booking } from "@/lib/types";
 
@@ -137,21 +138,30 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
         <p className="font-medium text-foreground">Depositum ({formatEur(booking.deposit.amount)})</p>
         {booking.deposit.status === "none" && (
           <>
-            <p className="text-muted">Reserveres automatisk på utsjekksdagen.</p>
-            <SmallButton
-              disabled={!booking.defaultPaymentMethodId}
-              busy={busy === "deposit-hold"}
-              onClick={() => run("deposit-hold", `${base}/deposit`, { action: "hold" })}
-            >
-              Reserver nå
-            </SmallButton>
+            <p className="text-muted">Reserveres automatisk dagen før utsjekk.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <SmallButton
+                disabled={!booking.defaultPaymentMethodId}
+                busy={busy === "deposit-hold"}
+                onClick={() => run("deposit-hold", `${base}/deposit`, { action: "hold" })}
+              >
+                Reserver nå
+              </SmallButton>
+              <SmallButton
+                busy={busy === "deposit-release"}
+                onClick={() => run("deposit-release", `${base}/deposit`, { action: "release" })}
+              >
+                Frigi depositum
+              </SmallButton>
+            </div>
           </>
         )}
         {booking.deposit.status === "held" && (
           <>
             <p className="text-muted">
-              Reservert {booking.deposit.heldAt?.slice(0, 10)}. Trekk eller frigi innen
-              ca. {DEPOSIT_HOLD_DAYS} dager, før korthold utløper automatisk.
+              Reservert {booking.deposit.heldAt?.slice(0, 10)}. Frigis normalt innen{" "}
+              {addDays(booking.checkOut, DEPOSIT_HOLD_DAYS)} ({DEPOSIT_HOLD_DAYS} dager etter utsjekk),
+              før korthold utløper automatisk.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <input
@@ -174,7 +184,7 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
                 busy={busy === "deposit-release"}
                 onClick={() => run("deposit-release", `${base}/deposit`, { action: "release" })}
               >
-                Frigi
+                Frigi depositum
               </SmallButton>
             </div>
           </>

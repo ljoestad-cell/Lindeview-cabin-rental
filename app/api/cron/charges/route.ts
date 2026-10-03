@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 /**
  * Kalles daglig av Vercel Cron (se vercel.json). Belaster hovedbeløp som har
  * forfalt (CHARGE_DAYS_BEFORE_CHECKIN dager før innsjekk) og reserverer
- * depositum for bookinger som har nådd utsjekksdagen. Anonymiserer også
+ * depositum for bookinger som er en dag fra utsjekk. Anonymiserer også
  * bookinger der oppbevaringstiden for personopplysninger er ute.
  *
  * Vercel setter automatisk `Authorization: Bearer <CRON_SECRET>` når den

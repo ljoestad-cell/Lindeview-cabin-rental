@@ -117,7 +117,7 @@ export async function chargeMainAmount(booking: Booking): Promise<PaymentResult>
   return offSessionCharge(booking, booking.pricing.total, "main");
 }
 
-/** Reserverer (autoriserer, uten å trekke) depositumet – kalles på utsjekksdagen. */
+/** Reserverer (autoriserer, uten å trekke) depositumet – kalles dagen før utsjekk. */
 export async function holdDeposit(booking: Booking): Promise<PaymentResult> {
   return offSessionCharge(booking, booking.deposit.amount, "deposit", { capture_method: "manual" });
 }

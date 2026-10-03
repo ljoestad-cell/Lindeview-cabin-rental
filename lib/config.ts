@@ -14,9 +14,15 @@ export const MIN_NIGHTS = 7;
 export const MAX_GUESTS = GUEST_CAPACITY;
 export const CURRENCY = "EUR";
 
-/** Depositum reserveres på kortet ved utsjekk, ikke ved innsjekk – se lib/payments.ts. */
+/** Depositum reserveres på kortet like før utsjekk, ikke ved innsjekk – se lib/payments.ts. */
 export const DEPOSIT_AMOUNT = 1000;
-/** Hvor mange dager eieren normalt trenger til inspeksjon før depositum trekkes/frigis. */
+/**
+ * Depositum reserveres automatisk dette antall dager før utsjekk. Et korthold
+ * varer bare ca. 7 dager hos de fleste banker, så reservasjon + DEPOSIT_HOLD_DAYS
+ * må holde seg innenfor det.
+ */
+export const DEPOSIT_RESERVE_DAYS_BEFORE_CHECKOUT = 1;
+/** Depositum frigis normalt innen dette antall dager etter utsjekk (etter inspeksjon). */
 export const DEPOSIT_HOLD_DAYS = 5;
 /**
  * Hovedbeløpet belastes automatisk dette antall dager før innsjekk – første

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import { DEPOSIT_HOLD_DAYS } from "@/lib/config";
 import { PROPERTY_NAME } from "@/lib/property";
 
 export const metadata: Metadata = {
@@ -23,8 +24,8 @@ export default function SecuredPage() {
           <p className="mt-6 text-lg leading-relaxed text-muted">
             Takk! Betalingsmetoden din er registrert. Du blir ikke belastet nå
             — hovedbeløpet trekkes automatisk nærmere innsjekk, og et
-            depositum reserveres ved utsjekk og frigis normalt innen noen
-            dager hvis alt er i orden. Du hører fra oss hvis noe skulle kreve
+            depositum reserveres dagen før utsjekk og frigis normalt innen{" "}
+            {DEPOSIT_HOLD_DAYS} dager etter utsjekk hvis alt er i orden. Du hører fra oss hvis noe skulle kreve
             oppfølging.
           </p>
           <Link

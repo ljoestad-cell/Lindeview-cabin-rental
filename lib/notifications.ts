@@ -194,7 +194,8 @@ function stayLines(booking: Booking): [string, string][] {
 function depositSentence(booking: Booking): string {
   return (
     `A security deposit of ${formatAmount(booking.deposit.amount)} will be reserved (not charged) on the same card ` +
-    `on your check-out day, and released after we have inspected the cabin – normally within ${DEPOSIT_HOLD_DAYS} days.`
+    `the day before check-out, and released after we have inspected the cabin – normally within ${DEPOSIT_HOLD_DAYS} days ` +
+    `after check-out.`
   );
 }
 

@@ -55,8 +55,8 @@ export default function TermsPage() {
 
       <LegalSection title="4. Depositum">
         <p>
-          Depositumet som ble oppgitt da du bestilte, reserveres på kortet ditt på utsjekksdagen. Det trekkes ikke,
-          og det frigis normalt innen {DEPOSIT_HOLD_DAYS} dager etter at vi har sett over hytta.
+          Depositumet som ble oppgitt da du bestilte, reserveres på kortet ditt dagen før utsjekk. Det trekkes ikke,
+          og det frigis normalt innen {DEPOSIT_HOLD_DAYS} dager etter utsjekk, når vi har sett over hytta.
         </p>
         <p>
           Depositumet kan helt eller delvis trekkes ved skade, tap, uvanlig behov for rengjøring eller brudd på

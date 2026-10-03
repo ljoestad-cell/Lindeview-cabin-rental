@@ -5,6 +5,7 @@ import {
   BEDDING_MAX,
   CHARGE_DAYS_BEFORE_CHECKIN,
   DEPOSIT_AMOUNT,
+  DEPOSIT_RESERVE_DAYS_BEFORE_CHECKOUT,
   EV_CHARGER_MAX,
   MAX_GUESTS,
   MIN_NIGHTS,
@@ -525,7 +526,11 @@ export async function retryMainCharge(bookingId: string): Promise<Booking | null
   return applyMainChargeResult(booking, result);
 }
 
-/** Reserverer, trekker eller frigir depositumet. */
+/**
+ * Reserverer, trekker eller frigir depositumet. Frigis et depositum som aldri
+ * ble reservert, merkes det bare som frigitt (ingenting å kansellere i
+ * Stripe) – da reserverer heller ikke cron-jobben det senere.
+ */
 export async function manageDeposit(
   bookingId: string,
   action: "hold" | "capture" | "release",
@@ -536,8 +541,10 @@ export async function manageDeposit(
   if (!isStripeConfigured()) return booking;
 
   const store = getStore();
-  const result =
-    action === "hold"
+  const nothingToRelease = action === "release" && !booking.deposit.paymentIntentId;
+  const result = nothingToRelease
+    ? { ok: true as const, paymentIntentId: null }
+    : action === "hold"
       ? await payments.holdDeposit(booking)
       : action === "capture"
         ? await payments.captureDeposit(booking, amount)
@@ -607,7 +614,8 @@ export async function addExtraCharge(
 
 /**
  * Kjøres daglig av cron-jobben: belaster hovedbeløp som har forfalt, og
- * reserverer depositum for bookinger som har nådd utsjekksdagen.
+ * reserverer depositum for bookinger som er DEPOSIT_RESERVE_DAYS_BEFORE_CHECKOUT
+ * dager fra utsjekk.
  */
 export async function runDueCharges(): Promise<{ charged: string[]; deposits: string[] }> {
   const bookings = await loadAllBookings();
@@ -628,7 +636,10 @@ export async function runDueCharges(): Promise<{ charged: string[]; deposits: st
 
   const deposits: string[] = [];
   for (const booking of confirmed) {
-    const due = booking.mainCharge.status === "paid" && booking.deposit.status === "none" && booking.checkOut <= now;
+    const due =
+      booking.mainCharge.status === "paid" &&
+      booking.deposit.status === "none" &&
+      addDays(booking.checkOut, -DEPOSIT_RESERVE_DAYS_BEFORE_CHECKOUT) <= now;
     if (due) {
       await manageDeposit(booking.id, "hold");
       deposits.push(booking.id);

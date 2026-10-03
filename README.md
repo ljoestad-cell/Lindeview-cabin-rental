@@ -274,11 +274,13 @@ Alle priser er i **EUR**, og settes under «Priser» i admin. Betalingsflyten:
 3. **Hovedbeløpet** (leie + utvask) trekkes automatisk 29 dager før innsjekk (dagen etter at fristen for gratis
    avbestilling er ute)
    — eller med en gang, hvis bookingen ble bekreftet senere enn det.
-4. **Depositum** (standard 1000 EUR, beløpet låses på bookingen) reserveres automatisk på kortet **på
-   utsjekksdagen** (ikke før innsjekk — et korthold varer bare ca. 7 dager
+4. **Depositum** (standard 1000 EUR, beløpet låses på bookingen) reserveres automatisk på kortet **dagen
+   før utsjekk** (ikke før innsjekk — et korthold varer bare ca. 7 dager
    hos de fleste banker, så det holdes til rett etter oppholdet i stedet for
-   å strekke seg over hele det). Du har deretter noen dager på deg til å
-   inspisere hytta og enten trekke (helt/delvis) eller frigi det i `/admin`.
+   å strekke seg over hele det). Det frigis normalt innen 5 dager etter
+   utsjekk: inspiser hytta og enten trekk (helt/delvis) eller frigi det i
+   `/admin`. «Frigi depositum» kansellerer reservasjonen i Stripe; brukes den
+   før noe er reservert, hoppes den automatiske reservasjonen over.
 5. **Tilleggsbeløp** (skade, ekstra rengjøring) kan trekkes når som helst fra
    samme lagrede kort, også i `/admin`.
 
