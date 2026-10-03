@@ -34,6 +34,8 @@ export async function buildBackup() {
     const { ...rest } = account;
     delete (rest as Partial<typeof account>).passwordHash;
     delete (rest as Partial<typeof account>).mfaSecret;
+    delete (rest as Partial<typeof account>).mfaPendingSecret;
+    delete (rest as Partial<typeof account>).mfaRecoveryCodes;
     safeAccount = rest;
   }
   return {

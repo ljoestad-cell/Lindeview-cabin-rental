@@ -4,6 +4,9 @@ import { getStore } from "@/lib/store";
 
 const COOKIE_NAME = "admin_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 12; // 12 timer
+/** Riktig passord, men koden fra autentiseringsappen gjenstår. */
+const MFA_PENDING_COOKIE = "admin_mfa_pending";
+const MFA_PENDING_TTL_SECONDS = 60 * 5;
 
 const MIN_PASSWORD_LENGTH = 10;
 const MIN_DIGITS = 2;
@@ -130,4 +133,41 @@ export async function hasValidSession(): Promise<boolean> {
   if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) return false;
 
   return true;
+}
+
+// --- Topartsverifisering: mellomsteg -----------------------------------
+
+/**
+ * Settes etter riktig passord når MFA er på. Gir ingen tilgang i seg selv –
+ * payloaden har et eget prefiks, så den kan aldri godtas som sesjonscookie
+ * selv om signaturnøkkelen er den samme.
+ */
+export async function createMfaPending(): Promise<void> {
+  const payload = `mfa-${Date.now() + MFA_PENDING_TTL_SECONDS * 1000}`;
+  const store = await cookies();
+  store.set(MFA_PENDING_COOKIE, `${payload}.${sign(payload)}`, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/api/admin/session",
+    maxAge: MFA_PENDING_TTL_SECONDS,
+  });
+}
+
+export async function hasMfaPending(): Promise<boolean> {
+  const store = await cookies();
+  const token = store.get(MFA_PENDING_COOKIE)?.value;
+  if (!token) return false;
+
+  const [payload, signature] = token.split(".");
+  if (!payload?.startsWith("mfa-") || !signature) return false;
+  if (!safeEqual(signature, sign(payload))) return false;
+
+  const expiresAt = Number(payload.slice("mfa-".length));
+  return Number.isFinite(expiresAt) && Date.now() <= expiresAt;
+}
+
+export async function clearMfaPending(): Promise<void> {
+  const store = await cookies();
+  store.delete({ name: MFA_PENDING_COOKIE, path: "/api/admin/session" });
 }

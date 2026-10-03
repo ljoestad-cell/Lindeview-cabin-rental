@@ -25,6 +25,8 @@ export interface BookingStore {
 
   /** Teller opp `key` og returnerer ny verdi. Telleren nullstilles `windowSeconds` etter første treff – brukt til rate-limiting. */
   incrementCounter(key: string, windowSeconds: number): Promise<number>;
+  /** Nåværende verdi uten å øke den – 0 hvis telleren ikke finnes eller er utløpt. */
+  getCounter(key: string): Promise<number>;
 }
 
 const REDIS_BOOKINGS_KEY = "lindeview:bookings";
@@ -115,6 +117,10 @@ class RedisStore implements BookingStore {
     const count = await this.redis.incr(redisKey);
     if (count === 1) await this.redis.expire(redisKey, windowSeconds);
     return count;
+  }
+
+  async getCounter(key: string): Promise<number> {
+    return Number((await this.redis.get(`lindeview:ratelimit:${key}`)) ?? 0);
   }
 }
 
@@ -237,6 +243,11 @@ class FileStore implements BookingStore {
         : { count: 1, resetAt: now + windowSeconds * 1000 };
     this.counters.set(key, entry);
     return entry.count;
+  }
+
+  async getCounter(key: string): Promise<number> {
+    const existing = this.counters.get(key);
+    return existing && existing.resetAt > Date.now() ? existing.count : 0;
   }
 }
 

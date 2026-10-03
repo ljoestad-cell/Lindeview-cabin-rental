@@ -119,9 +119,16 @@ export type AdminAccount = {
   email: string;
   /** "saltHex:hashHex" (scrypt) – se lib/auth.ts. Tomt inntil eieren har satt et eget passord. */
   passwordHash: string;
-  /** Reservert for fremtidig topartsverifisering – ikke i bruk ennå. */
+  /** Topartsverifisering (TOTP, se lib/totp.ts) – krever kode fra autentiseringsapp ved innlogging. */
   mfaEnabled: boolean;
+  /** Base32-hemmeligheten appen er satt opp med. Forlater aldri serveren etter oppsett. */
   mfaSecret: string | null;
+  /** Hemmelighet under oppsett – blir mfaSecret først når eieren har bekreftet med en gyldig kode. */
+  mfaPendingSecret: string | null;
+  /** SHA-256 av ubrukte reservekoder. En kode fjernes når den brukes. */
+  mfaRecoveryCodes: string[];
+  /** Siste brukte TOTP-tidssteg – hindrer at samme kode brukes to ganger. */
+  mfaLastUsedStep: number | null;
   /** Ugjettbar del av URL-en Airbnb bruker til å importere Lindeviews kalender (se app/api/ical/[token]). Stabil – regenereres aldri automatisk. */
   icalExportToken: string;
   /** Airbnb sin iCal-eksport-URL, limt inn av eieren i «Min konto» – brukes til å importere Airbnb-reservasjoner som blokkeringer. */

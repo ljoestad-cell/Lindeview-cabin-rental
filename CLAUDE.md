@@ -26,8 +26,8 @@ gjennomgang av arkitektur og tredjepartsvalg.
   `RESEND_FROM_EMAIL` på verifisert domene (lindeview.no) er satt.
 - **Google Calendar**: kode klar, ikke koblet til (venter på at eieren
   oppretter service-konto).
-- **MFA**: datamodell og UI-plassholder finnes i "Min konto", ingen faktisk
-  funksjonalitet.
+- **MFA**: TOTP for admin (lib/totp.ts), slås på i "Min konto". Nødbryter:
+  `ADMIN_MFA_DISABLED=true`. Ingen tredjepart – appen eieren bruker er valgfri.
 
 ## Arbeidsvaner i dette prosjektet
 

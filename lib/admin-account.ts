@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { hashPassword, isCorrectPassword, validatePasswordStrength } from "@/lib/auth";
-import { OWNER_EMAIL } from "@/lib/property";
+import { OWNER_EMAIL, PROPERTY_NAME } from "@/lib/property";
 import { getStore } from "@/lib/store";
+import {
+  findRecoveryCode,
+  generateRecoveryCodes,
+  generateTotpSecret,
+  hashRecoveryCode,
+  otpauthUri,
+  verifyTotp,
+} from "@/lib/totp";
 import type { AdminAccount } from "@/lib/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -13,6 +21,9 @@ function defaultAccount(): AdminAccount {
     passwordHash: "",
     mfaEnabled: false,
     mfaSecret: null,
+    mfaPendingSecret: null,
+    mfaRecoveryCodes: [],
+    mfaLastUsedStep: null,
     icalExportToken: randomUUID(),
     airbnbIcalUrl: null,
     airbnbSyncEnabled: true,
@@ -37,6 +48,11 @@ async function loadAccount(): Promise<AdminAccount> {
     airbnbIcalUrl: base.airbnbIcalUrl ?? null,
     airbnbSyncEnabled: base.airbnbSyncEnabled ?? true,
     airbnbIcalSyncedAt: base.airbnbIcalSyncedAt ?? null,
+    mfaEnabled: base.mfaEnabled ?? false,
+    mfaSecret: base.mfaSecret ?? null,
+    mfaPendingSecret: base.mfaPendingSecret ?? null,
+    mfaRecoveryCodes: base.mfaRecoveryCodes ?? [],
+    mfaLastUsedStep: base.mfaLastUsedStep ?? null,
   };
   if (!existing || needsToken) {
     await getStore().setAdminAccount(account);
@@ -44,15 +60,21 @@ async function loadAccount(): Promise<AdminAccount> {
   return account;
 }
 
-/** Eierens konto, uten det sensitive passordhash-feltet – trygt å sende til klienten. */
-export type PublicAdminAccount = Omit<AdminAccount, "passwordHash">;
+/** Eierens konto uten passordhash og MFA-hemmeligheter – trygt å sende til klienten. */
+export type PublicAdminAccount = Omit<
+  AdminAccount,
+  "passwordHash" | "mfaSecret" | "mfaPendingSecret" | "mfaRecoveryCodes" | "mfaLastUsedStep"
+> & {
+  /** Antall ubrukte reservekoder – selve kodene vises bare én gang, ved oppsett. */
+  mfaRecoveryCodesLeft: number;
+};
 
 function toPublic(account: AdminAccount): PublicAdminAccount {
   const {
     name,
     email,
     mfaEnabled,
-    mfaSecret,
+    mfaRecoveryCodes,
     icalExportToken,
     airbnbIcalUrl,
     airbnbSyncEnabled,
@@ -63,7 +85,7 @@ function toPublic(account: AdminAccount): PublicAdminAccount {
     name,
     email,
     mfaEnabled,
-    mfaSecret,
+    mfaRecoveryCodesLeft: mfaRecoveryCodes.length,
     icalExportToken,
     airbnbIcalUrl,
     airbnbSyncEnabled,
@@ -146,4 +168,102 @@ export async function updateAirbnbSyncEnabled(enabled: boolean): Promise<PublicA
 export async function recordAirbnbSync(): Promise<void> {
   const existing = await loadAccount();
   await getStore().setAdminAccount({ ...existing, airbnbIcalSyncedAt: new Date().toISOString() });
+}
+
+// --- Topartsverifisering (TOTP) ------------------------------------------
+
+/**
+ * Nødbryter: ADMIN_MFA_DISABLED=true i miljøvariablene slår av kravet om kode
+ * ved innlogging (f.eks. mistet telefon og reservekoder). Den som kan sette
+ * miljøvariabler i Vercel har uansett full kontroll, så dette svekker ikke
+ * sikkerheten.
+ */
+function mfaBypassed(): boolean {
+  return process.env.ADMIN_MFA_DISABLED === "true";
+}
+
+/** True hvis innloggingen skal be om kode etter passordet. */
+export async function isMfaRequired(): Promise<boolean> {
+  if (mfaBypassed()) return false;
+  const account = await loadAccount();
+  return account.mfaEnabled && Boolean(account.mfaSecret);
+}
+
+/**
+ * Steg 1 av oppsettet: lager en ny hemmelighet (lagres som «under oppsett»)
+ * og returnerer otpauth-lenken QR-koden bygges fra. Ingenting endres i
+ * innloggingen før eieren har bekreftet med en gyldig kode.
+ */
+export async function startMfaSetup(): Promise<{ secret: string; uri: string }> {
+  const existing = await loadAccount();
+  if (existing.mfaEnabled) throw new AccountValidationError("Topartsverifisering er allerede på.");
+  const secret = generateTotpSecret();
+  await getStore().setAdminAccount({ ...existing, mfaPendingSecret: secret, updatedAt: new Date().toISOString() });
+  return { secret, uri: otpauthUri(secret, PROPERTY_NAME, existing.email || "admin") };
+}
+
+/**
+ * Steg 2: eieren skriver inn koden appen viser. Riktig kode slår på MFA og
+ * returnerer reservekodene i klartekst – den eneste gangen de vises.
+ */
+export async function confirmMfaSetup(code: string): Promise<{ account: PublicAdminAccount; recoveryCodes: string[] }> {
+  const existing = await loadAccount();
+  if (existing.mfaEnabled) throw new AccountValidationError("Topartsverifisering er allerede på.");
+  if (!existing.mfaPendingSecret) throw new AccountValidationError("Start oppsettet på nytt.");
+
+  const step = verifyTotp(existing.mfaPendingSecret, code);
+  if (step === null) throw new AccountValidationError("Feil kode. Sjekk at klokken på telefonen er riktig, og prøv igjen.");
+
+  const recoveryCodes = generateRecoveryCodes();
+  const updated: AdminAccount = {
+    ...existing,
+    mfaEnabled: true,
+    mfaSecret: existing.mfaPendingSecret,
+    mfaPendingSecret: null,
+    mfaRecoveryCodes: recoveryCodes.map(hashRecoveryCode),
+    mfaLastUsedStep: step,
+    updatedAt: new Date().toISOString(),
+  };
+  await getStore().setAdminAccount(updated);
+  return { account: toPublic(updated), recoveryCodes };
+}
+
+/**
+ * Sjekker en kode fra appen, eller en reservekode (som da brukes opp).
+ * Kalles fra innloggingens andre steg.
+ */
+export async function verifyMfaCode(code: string): Promise<boolean> {
+  const existing = await loadAccount();
+  if (!existing.mfaEnabled || !existing.mfaSecret) return false;
+
+  const step = verifyTotp(existing.mfaSecret, code, existing.mfaLastUsedStep);
+  if (step !== null) {
+    await getStore().setAdminAccount({ ...existing, mfaLastUsedStep: step });
+    return true;
+  }
+
+  const index = findRecoveryCode(code, existing.mfaRecoveryCodes);
+  if (index === -1) return false;
+  const mfaRecoveryCodes = existing.mfaRecoveryCodes.filter((_, i) => i !== index);
+  await getStore().setAdminAccount({ ...existing, mfaRecoveryCodes });
+  return true;
+}
+
+/** Slår av MFA – krever både passord og en gyldig kode (eller reservekode). */
+export async function disableMfa(password: string, code: string): Promise<PublicAdminAccount> {
+  if (!(await isCorrectPassword(password))) throw new AccountValidationError("Feil passord.");
+  if (!(await verifyMfaCode(code))) throw new AccountValidationError("Feil kode.");
+
+  const existing = await loadAccount();
+  const updated: AdminAccount = {
+    ...existing,
+    mfaEnabled: false,
+    mfaSecret: null,
+    mfaPendingSecret: null,
+    mfaRecoveryCodes: [],
+    mfaLastUsedStep: null,
+    updatedAt: new Date().toISOString(),
+  };
+  await getStore().setAdminAccount(updated);
+  return toPublic(updated);
 }

@@ -11,6 +11,10 @@ export default function AccountForm({ initialAccount }: { initialAccount: Public
     <div className="space-y-10">
       <ProfileSection initialAccount={initialAccount} />
       <PasswordSection />
+      <MfaSection
+        initialEnabled={initialAccount.mfaEnabled}
+        initialRecoveryCodesLeft={initialAccount.mfaRecoveryCodesLeft}
+      />
       <CalendarSyncSection
         icalExportToken={initialAccount.icalExportToken}
         initialAirbnbIcalUrl={initialAccount.airbnbIcalUrl}
@@ -18,7 +22,6 @@ export default function AccountForm({ initialAccount }: { initialAccount: Public
         airbnbIcalSyncedAt={initialAccount.airbnbIcalSyncedAt}
       />
       <BackupSection />
-      <MfaSection enabled={initialAccount.mfaEnabled} />
     </div>
   );
 }
@@ -438,24 +441,261 @@ function BackupSection() {
   );
 }
 
-function MfaSection({ enabled }: { enabled: boolean }) {
+type MfaSetup = { secret: string; qrDataUrl: string };
+
+/**
+ * Topartsverifisering: av → oppsett (QR + bekreft med kode) → reservekoder
+ * vises én gang → på. Å slå av krever passord og kode.
+ */
+function MfaSection({
+  initialEnabled,
+  initialRecoveryCodesLeft,
+}: {
+  initialEnabled: boolean;
+  initialRecoveryCodesLeft: number;
+}) {
+  const [enabled, setEnabled] = useState(initialEnabled);
+  const [recoveryCodesLeft, setRecoveryCodesLeft] = useState(initialRecoveryCodesLeft);
+  const [setup, setSetup] = useState<MfaSetup | null>(null);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [disabling, setDisabling] = useState(false);
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function call(method: "POST" | "PUT" | "DELETE", body?: object) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/account/mfa", {
+        method,
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Noe gikk galt.");
+        return null;
+      }
+      return data;
+    } catch {
+      setError("Kunne ikke kontakte serveren.");
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startSetup() {
+    const data = await call("POST");
+    if (data) setSetup(data);
+  }
+
+  async function confirmSetup(e: React.FormEvent) {
+    e.preventDefault();
+    const data = await call("PUT", { code });
+    if (!data) return;
+    setSetup(null);
+    setCode("");
+    setEnabled(true);
+    setRecoveryCodesLeft(data.account.mfaRecoveryCodesLeft);
+    setRecoveryCodes(data.recoveryCodes);
+  }
+
+  async function disable(e: React.FormEvent) {
+    e.preventDefault();
+    const data = await call("DELETE", { password, code });
+    if (!data) return;
+    setEnabled(false);
+    setDisabling(false);
+    setPassword("");
+    setCode("");
+    setRecoveryCodesLeft(0);
+  }
+
+  function copyCodes() {
+    if (!recoveryCodes) return;
+    navigator.clipboard.writeText(recoveryCodes.join("\n")).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const codeInput = (
+    <label className="block">
+      <span className="text-sm font-medium text-foreground">Kode fra appen</span>
+      <input
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        placeholder="123456"
+        required
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        className={`mt-1.5 block max-w-48 tracking-widest ${INPUT_CLASS}`}
+      />
+    </label>
+  );
+
   return (
-    <section className="rounded-2xl border border-dashed border-line bg-background p-6">
-      <div className="flex items-center justify-between gap-4">
+    <section className="rounded-2xl bg-surface p-6 ring-1 ring-line">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-display text-lg text-brand">Topartsverifisering (MFA)</h2>
+          <h2 className="font-display text-lg text-brand">Topartsverifisering</h2>
           <p className="mt-1 text-sm text-muted">
-            Ekstra sikkerhetslag ved innlogging (kode fra en autentiserings-app i tillegg til
-            passord). Kommer i en senere oppdatering.
+            Krever en kode fra en autentiseringsapp (Google Authenticator, Microsoft Authenticator,
+            1Password o.l.) i tillegg til passordet når du logger inn.
           </p>
         </div>
         <span
-          aria-disabled="true"
-          className="shrink-0 rounded-full bg-muted/20 px-4 py-1.5 text-xs font-semibold text-muted"
+          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+            enabled ? "bg-emerald-50 text-emerald-700" : "bg-muted/15 text-muted"
+          }`}
         >
-          {enabled ? "På" : "Kommer snart"}
+          {enabled ? "På" : "Av"}
         </span>
       </div>
+
+      {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
+
+      {recoveryCodes && (
+        <div className="mt-5 space-y-3 rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200">
+          <p className="text-sm font-semibold text-amber-900">Ta vare på reservekodene nå</p>
+          <p className="text-sm text-amber-900">
+            Hver kode kan brukes én gang i stedet for koden fra appen – f.eks. hvis du mister telefonen.
+            De vises bare denne ene gangen. Lagre dem i passordbehandleren din eller skriv dem ut.
+          </p>
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-1 font-mono text-sm text-foreground">
+            {recoveryCodes.map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={copyCodes}
+              className="rounded-full border border-amber-300 bg-white px-4 py-1.5 text-xs font-semibold text-amber-900"
+            >
+              {copied ? "Kopiert!" : "Kopier kodene"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRecoveryCodes(null)}
+              className="rounded-full bg-amber-900 px-4 py-1.5 text-xs font-semibold text-white"
+            >
+              Jeg har lagret dem
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!enabled && !setup && (
+        <button
+          type="button"
+          onClick={startSetup}
+          disabled={busy}
+          className="mt-5 rounded-full bg-accent px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
+        >
+          {busy ? "..." : "Slå på topartsverifisering"}
+        </button>
+      )}
+
+      {!enabled && setup && (
+        <form onSubmit={confirmSetup} className="mt-5 space-y-4">
+          <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground">
+            <li>Åpne autentiseringsappen og velg «legg til konto» / «skann QR-kode».</li>
+            <li>Skann koden under.</li>
+            <li>Skriv inn den 6-sifrede koden appen viser.</li>
+          </ol>
+          {/* eslint-disable-next-line @next/next/no-img-element -- data-URL fra serveren, ingen bildeoptimalisering å hente */}
+          <img
+            src={setup.qrDataUrl}
+            alt="QR-kode for autentiseringsappen"
+            width={200}
+            height={200}
+            className="rounded-lg ring-1 ring-line"
+          />
+          <p className="text-xs text-muted">
+            Kan ikke skanne? Skriv inn denne nøkkelen manuelt:{" "}
+            <span className="break-all font-mono text-foreground">{setup.secret.match(/.{1,4}/g)?.join(" ")}</span>
+          </p>
+          {codeInput}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-full bg-accent px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
+            >
+              {busy ? "Sjekker..." : "Bekreft og slå på"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSetup(null);
+                setCode("");
+                setError(null);
+              }}
+              className="rounded-full border border-line px-6 py-2.5 text-sm font-semibold text-brand"
+            >
+              Avbryt
+            </button>
+          </div>
+        </form>
+      )}
+
+      {enabled && !recoveryCodes && (
+        <div className="mt-5 space-y-4">
+          <p className="text-sm text-muted">
+            {recoveryCodesLeft} {recoveryCodesLeft === 1 ? "reservekode" : "reservekoder"} igjen.
+            {recoveryCodesLeft <= 3 &&
+              " Slå topartsverifisering av og på igjen for å få nye koder."}
+          </p>
+          {!disabling ? (
+            <button
+              type="button"
+              onClick={() => setDisabling(true)}
+              className="rounded-full border border-line px-5 py-2 text-sm font-semibold text-brand transition-colors hover:bg-brand/5"
+            >
+              Slå av
+            </button>
+          ) : (
+            <form onSubmit={disable} className="space-y-4">
+              <label className="block">
+                <span className="text-sm font-medium text-foreground">Passord</span>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`mt-1.5 ${INPUT_CLASS}`}
+                />
+              </label>
+              {codeInput}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="rounded-full bg-red-700 px-6 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {busy ? "..." : "Slå av topartsverifisering"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDisabling(false);
+                    setError(null);
+                  }}
+                  className="rounded-full border border-line px-6 py-2.5 text-sm font-semibold text-brand"
+                >
+                  Avbryt
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
     </section>
   );
 }

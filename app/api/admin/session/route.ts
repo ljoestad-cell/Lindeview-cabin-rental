@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createSession, destroySession, isCorrectPassword } from "@/lib/auth";
+import { isMfaRequired } from "@/lib/admin-account";
+import { clearMfaPending, createMfaPending, createSession, destroySession, isCorrectPassword } from "@/lib/auth";
 import { isRateLimited } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -39,11 +40,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Feil passord." }, { status: 401 });
   }
 
+  // Med MFA på gir riktig passord bare et mellomsteg – koden sjekkes i ./mfa.
+  if (await isMfaRequired()) {
+    await createMfaPending();
+    return NextResponse.json({ mfaRequired: true });
+  }
+
   await createSession();
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE() {
   await destroySession();
+  await clearMfaPending();
   return NextResponse.json({ ok: true });
 }

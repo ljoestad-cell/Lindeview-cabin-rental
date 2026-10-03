@@ -74,7 +74,7 @@ dobbeltbooking.
 Bookinger, blokkeringer, priser og kontoinnstillinger finnes bare i databasen.
 Under «Min konto» → «Sikkerhetskopi» kan du laste ned:
 
-- **Full sikkerhetskopi (JSON):** alt, uten passordhash og MFA-hemmelighet.
+- **Full sikkerhetskopi (JSON):** alt, uten passordhash, MFA-hemmelighet og reservekoder.
 - **Bookinger som regneark (CSV):** én rad per booking med status, beløp,
   betaling og depositum. Filen åpnes riktig i norsk Excel (semikolon og
   desimalkomma).
@@ -178,9 +178,25 @@ produksjon:
 `/admin/account` lar deg endre navn og e-post, og bytte passord (krever
 gjeldende passord). Passordkrav: minst 10 tegn, minst 2 tall og minst 1
 spesialtegn. Det nye passordet lagres i tillegg til `ADMIN_PASSWORD` — begge
-fungerer for innlogging. Siden har også en plassholder for
-topartsverifisering (MFA) — ikke funksjonell ennå, men datamodellen
-(`mfaEnabled`/`mfaSecret`) er klar for det.
+fungerer for innlogging.
+
+### Topartsverifisering (MFA)
+
+Slås på under **Min konto → Topartsverifisering**: skann QR-koden med en
+autentiseringsapp (Google Authenticator, Microsoft Authenticator, 1Password
+o.l.) og bekreft med koden appen viser. Deretter krever innloggingen både
+passord og en 6-sifret kode — også med `ADMIN_PASSWORD`.
+
+- **Reservekoder:** 10 engangskoder vises *én gang* ved oppsett. Lagre dem
+  i passordbehandleren. Brukes via «Har ikke telefonen? Bruk en
+  reservekode» på innloggingen. Slå MFA av og på igjen for nye koder.
+- **Slå av:** krever passord og en gyldig kode (eller reservekode).
+- **Nødbryter:** mistet både telefon og reservekoder? Sett
+  `ADMIN_MFA_DISABLED=true` i Vercel og redeploy — da holder passordet
+  alene. Logg inn, slå MFA av og på igjen (ny QR-kode og nye
+  reservekoder), og fjern variabelen.
+- Etter 5 feil koder på et kvarter sperres kodeforsøk fra samme IP i et
+  kvarter. Samme kode kan ikke brukes to ganger.
 
 ### E-post (Resend)
 
