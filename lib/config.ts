@@ -45,15 +45,14 @@ export const BEDDING_MAX = 10;
 /**
  * Avbestilling fra gjesten (se lib/cancellation.ts og /vilkar):
  * - minst FULL_REFUND_DAYS dager før innsjekk: alt refunderes (normalt er ingenting trukket ennå)
- * - minst PARTIAL_REFUND_DAYS dager før: PARTIAL_REFUND_SHARE av hovedbeløpet refunderes
  * - senere: ingen refusjon
+ * Samme frist som når hovedbeløpet trekkes – avbestilling før trekket koster
+ * altså ingenting, etter trekket refunderes ingenting.
  */
 export const FULL_REFUND_DAYS = CHARGE_DAYS_BEFORE_CHECKIN;
-export const PARTIAL_REFUND_DAYS = 14;
-export const PARTIAL_REFUND_SHARE = 0.5;
 
 /** Øk (ny dato) når leievilkårene på /vilkar endres – lagres på hver booking som «godtatt versjon». */
-export const TERMS_VERSION = "2026-09-26";
+export const TERMS_VERSION = "2026-10-03";
 
 /**
  * Personopplysninger (navn, e-post, telefon, melding) anonymiseres automatisk

@@ -1,4 +1,4 @@
-import { FULL_REFUND_DAYS, PARTIAL_REFUND_DAYS, PARTIAL_REFUND_SHARE } from "@/lib/config";
+import { FULL_REFUND_DAYS } from "@/lib/config";
 import { nightsBetween } from "@/lib/dates";
 
 /**
@@ -8,9 +8,7 @@ import { nightsBetween } from "@/lib/dates";
  */
 export function refundShare(checkIn: string, cancelDate: string): number {
   const daysBefore = nightsBetween(cancelDate, checkIn);
-  if (daysBefore >= FULL_REFUND_DAYS) return 1;
-  if (daysBefore >= PARTIAL_REFUND_DAYS) return PARTIAL_REFUND_SHARE;
-  return 0;
+  return daysBefore >= FULL_REFUND_DAYS ? 1 : 0;
 }
 
 /** Refusjonsbeløp etter vilkårene, avrundet til hele cent. */

@@ -7,8 +7,6 @@ import {
   FULL_REFUND_DAYS,
   MAX_GUESTS,
   MIN_NIGHTS,
-  PARTIAL_REFUND_DAYS,
-  PARTIAL_REFUND_SHARE,
   TERMS_VERSION,
 } from "@/lib/config";
 import { CONTACT_EMAIL, LOCATION_LABEL, OWNER_NAME, OWNER_PHONE_DISPLAY, PROPERTY_NAME } from "@/lib/property";
@@ -24,7 +22,6 @@ export const metadata: Metadata = {
  * TERMS_VERSION – versjonen lagres på hver booking.
  */
 export default function TermsPage() {
-  const partialPercent = Math.round(PARTIAL_REFUND_SHARE * 100);
   return (
     <LegalPage eyebrow="Vilkår" title="Leievilkår" updated={TERMS_VERSION}>
       <LegalSection title="1. Avtalen">
@@ -83,13 +80,7 @@ export default function TermsPage() {
             trukket ennå.
           </li>
           <li>
-            <strong>
-              {PARTIAL_REFUND_DAYS}–{FULL_REFUND_DAYS - 1} dager før innsjekk:
-            </strong>{" "}
-            {partialPercent} % av leiebeløpet refunderes.
-          </li>
-          <li>
-            <strong>Mindre enn {PARTIAL_REFUND_DAYS} dager før innsjekk:</strong> ingen refusjon.
+            <strong>Mindre enn {FULL_REFUND_DAYS} dager før innsjekk:</strong> ingen refusjon.
           </li>
         </ul>
         <p>Refusjon går tilbake til samme kort. Et depositum som ikke er reservert, trekkes ikke.</p>

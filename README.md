@@ -58,8 +58,7 @@ automatisk i vilkårene:
 | Når gjesten avbestiller | Refusjon |
 |---|---|
 | Minst 30 dager før innsjekk | Alt (normalt er ingenting trukket ennå) |
-| 14–29 dager før innsjekk | 50 % av leiebeløpet |
-| Mindre enn 14 dager før | Ingenting |
+| Mindre enn 30 dager før | Ingenting |
 
 For en betalt booking har admin to knapper. **«Gjesten avbestiller»**
 refunderer etter tabellen over, og beløpet står på knappen. **«Vi avlyser»**
