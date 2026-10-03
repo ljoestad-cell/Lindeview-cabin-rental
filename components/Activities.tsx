@@ -56,7 +56,7 @@ export default function Activities() {
           Aktiviteter
         </p>
         <h2 className="mt-4 font-display text-4xl leading-tight text-brand sm:text-5xl">
-          Villmarken er din lekeplass
+          Naturen er din lekeplass
         </h2>
         <p className="mt-6 text-lg leading-relaxed text-muted">
           Enten du vil ut på vannet, opp i terrenget eller rett og slett bare

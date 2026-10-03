@@ -17,7 +17,7 @@ export default function Footer() {
           <div>
             <p className="font-display text-2xl text-white">{PROPERTY_NAME}</p>
             <p className="mt-2 max-w-xs text-sm leading-relaxed text-white/60">
-              Eksklusiv villmarkshytte på {LOCATION_LABEL} — stillhet, natur og høy
+              Eksklusiv naturhytte på {LOCATION_LABEL} — stillhet, natur og høy
               standard, samlet på ett sted.
             </p>
           </div>

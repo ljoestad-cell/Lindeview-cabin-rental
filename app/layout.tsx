@@ -16,8 +16,8 @@ const fraunces = Fraunces({
   style: ["normal", "italic"],
 });
 
-const title = `${PROPERTY_NAME} | Eksklusiv villmarkshytte på ${LOCATION_LABEL}`;
-const description = `${PROPERTY_NAME} er en eksklusiv villmarkshytte på ${LOCATION_LABEL} — fredelig beliggenhet, gourmetkjøkken og fiskekort inkludert. Book din neste hyttetur.`;
+const title = `${PROPERTY_NAME} | Eksklusiv naturhytte på ${LOCATION_LABEL}`;
+const description = `${PROPERTY_NAME} er en eksklusiv naturhytte på ${LOCATION_LABEL} — fredelig beliggenhet, gourmetkjøkken og fiskekort inkludert. Book din neste hyttetur.`;
 
 // Delingsbildet ligger i app/opengraph-image.jpg (Next legger det på automatisk).
 export const metadata: Metadata = {

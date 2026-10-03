@@ -38,7 +38,7 @@ export default function Hero() {
         </h1>
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/90">
           Innerst i en fredelig dal, langt fra trafikkerte veier, ligger en
-          hytte som gir deg stillheten og villmarken tilbake — med høy
+          hytte som gir deg stillheten og naturen tilbake — med høy
           standard og et gourmetkjøkken som matcher utsikten.
         </p>
 

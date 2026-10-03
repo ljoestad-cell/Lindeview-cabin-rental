@@ -72,7 +72,7 @@ export default function Amenities() {
               Fasiliteter
             </p>
             <h2 className="mt-4 font-display text-4xl leading-tight text-brand sm:text-5xl">
-              Høy standard, midt i villmarka
+              Høy standard, midt i naturen
             </h2>
             <p className="mt-6 text-lg leading-relaxed text-muted">
               Lindeview er bygget for gjester som vil ha det beste fra begge
