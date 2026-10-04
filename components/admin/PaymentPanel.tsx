@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { DEPOSIT_CAPTURE_REASON_MAX, DEPOSIT_HOLD_DAYS } from "@/lib/config";
+import { DEPOSIT_CAPTURE_REASON_MAX, DEPOSIT_HOLD_DAYS, REFUND_REASON_MAX } from "@/lib/config";
 import { addDays } from "@/lib/dates";
 import { formatEur } from "@/lib/pricing";
-import type { Booking } from "@/lib/types";
+import { refundableAmount, refundsFor } from "@/lib/refunds";
+import type { Booking, RefundTarget } from "@/lib/types";
 
 type Props = { booking: Booking; onUpdate: (booking: Booking) => void };
 
@@ -31,7 +32,7 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
 
   const base = `/api/bookings/${booking.id}`;
 
-  async function run(action: string, url: string, body?: object) {
+  async function run(action: string, url: string, body?: object): Promise<boolean> {
     setBusy(action);
     setError(null);
     try {
@@ -41,11 +42,26 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
         setExtraAmount("");
         setExtraDesc("");
       }
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Noe gikk galt.");
+      return false;
     } finally {
       setBusy(null);
     }
+  }
+
+  function refundControl(target: RefundTarget, extraChargeId: string | null = null) {
+    const action = `refund-${target}-${extraChargeId ?? ""}`;
+    return (
+      <RefundControl
+        booking={booking}
+        target={target}
+        extraChargeId={extraChargeId}
+        busy={busy === action}
+        onRefund={(amount, reason) => run(action, `${base}/refund`, { target, extraChargeId, amount, reason })}
+      />
+    );
   }
 
   function copyLink() {
@@ -115,10 +131,13 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
           </>
         )}
         {booking.mainCharge.status === "paid" && (
-          <p className="text-emerald-700">
-            Betalt {formatEur(booking.pricing.total)} ✓{" "}
-            {booking.mainCharge.paidAt && `(${booking.mainCharge.paidAt.slice(0, 10)})`}
-          </p>
+          <>
+            <p className="text-emerald-700">
+              Betalt {formatEur(booking.pricing.total)} ✓{" "}
+              {booking.mainCharge.paidAt && `(${booking.mainCharge.paidAt.slice(0, 10)})`}
+            </p>
+            {refundControl("main")}
+          </>
         )}
         {booking.mainCharge.status === "paid" && booking.guestEmails.confirmationSentAt && (
           <p className="text-xs text-muted">
@@ -224,11 +243,14 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
           </>
         )}
         {booking.deposit.status === "captured" && (
-          <p className="text-emerald-700">
-            Trukket {formatEur(booking.deposit.capturedAmount ?? booking.deposit.amount)}
-            {booking.deposit.resolvedAt && ` (${booking.deposit.resolvedAt.slice(0, 10)})`}
-            {booking.deposit.captureReason && <span className="text-muted"> – {booking.deposit.captureReason}</span>}
-          </p>
+          <>
+            <p className="text-emerald-700">
+              Trukket {formatEur(booking.deposit.capturedAmount ?? booking.deposit.amount)}
+              {booking.deposit.resolvedAt && ` (${booking.deposit.resolvedAt.slice(0, 10)})`}
+              {booking.deposit.captureReason && <span className="text-muted"> – {booking.deposit.captureReason}</span>}
+            </p>
+            {refundControl("deposit")}
+          </>
         )}
         {booking.deposit.status === "released" && (
           <p className="text-muted">
@@ -254,9 +276,12 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
         {booking.extraCharges.length > 0 && (
           <ul className="space-y-1 text-muted">
             {booking.extraCharges.map((c) => (
-              <li key={c.id}>
-                {formatEur(c.amount)} – {c.description}
-                {c.status === "failed" && <span className="text-red-700"> (feilet)</span>}
+              <li key={c.id} className="space-y-1">
+                <p>
+                  {formatEur(c.amount)} – {c.description}
+                  {c.status === "failed" && <span className="text-red-700"> (feilet)</span>}
+                </p>
+                {c.status === "succeeded" && refundControl("extra", c.id)}
               </li>
             ))}
           </ul>
@@ -287,6 +312,100 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
           </SmallButton>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Viser tidligere refusjoner av én belastning, og en «Refunder»-knapp som
+ * åpner et skjema (beløp + begrunnelse) så lenge noe gjenstår å tilbakeføre.
+ */
+function RefundControl({
+  booking,
+  target,
+  extraChargeId,
+  busy,
+  onRefund,
+}: {
+  booking: Booking;
+  target: RefundTarget;
+  extraChargeId: string | null;
+  busy: boolean;
+  onRefund: (amount: number, reason: string) => Promise<boolean>;
+}) {
+  const refundable = refundableAmount(booking, target, extraChargeId);
+  const done = refundsFor(booking, target, extraChargeId);
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState(String(refundable));
+  const [reason, setReason] = useState("");
+  const inputId = `refund-reason-${booking.id}-${target}-${extraChargeId ?? ""}`;
+
+  function openForm() {
+    setAmount(String(refundable));
+    setReason("");
+    setOpen(true);
+  }
+
+  async function submit() {
+    const value = Number(amount);
+    if (!confirm(`Refunder ${formatEur(value)} til gjesten? Dette kan ikke angres.`)) return;
+    if (await onRefund(value, reason)) setOpen(false);
+  }
+
+  const amountValid = Number(amount) > 0 && Number(amount) <= refundable;
+
+  return (
+    <div className="space-y-1">
+      {done.map((r) => (
+        <p key={r.id} className="text-xs text-muted">
+          Refundert {formatEur(r.amount)} {r.createdAt.slice(0, 10)} – {r.reason}
+        </p>
+      ))}
+      {refundable > 0 && !open && (
+        <SmallButton busy={false} onClick={openForm}>
+          Refunder
+        </SmallButton>
+      )}
+      {refundable > 0 && open && (
+        <div className="space-y-1.5 rounded-lg bg-surface p-2 ring-1 ring-line">
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              type="number"
+              min={0.01}
+              step={0.01}
+              max={refundable}
+              aria-label="Beløp som refunderes"
+              className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+            />
+            <span className="text-xs text-muted">av maks {formatEur(refundable)}</span>
+          </div>
+          <label className="block text-xs font-medium text-foreground" htmlFor={inputId}>
+            Hvorfor refunderes beløpet?
+          </label>
+          <textarea
+            id={inputId}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={REFUND_REASON_MAX}
+            rows={2}
+            placeholder="F.eks. trukket feil beløp"
+            className="w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <SmallButton disabled={!reason.trim() || !amountValid} busy={busy} onClick={submit}>
+              Bekreft refusjon
+            </SmallButton>
+            <SmallButton busy={false} onClick={() => setOpen(false)}>
+              Avbryt
+            </SmallButton>
+            <span className="ml-auto text-xs text-muted">
+              {reason.length}/{REFUND_REASON_MAX}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

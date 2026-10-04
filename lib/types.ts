@@ -11,7 +11,7 @@ export type MainCharge = {
   paymentIntentId: string | null;
   paidAt: string | null;
   lastError: string | null;
-  /** Beløp refundert ved avbestilling (etter vilkårene eller fullt) – null hvis ingenting er refundert. */
+  /** Sum refundert av hovedbeløpet (avbestilling + manuelle refusjoner) – null hvis ingenting er refundert. */
   refundedAmount: number | null;
 };
 
@@ -38,6 +38,22 @@ export type ExtraCharge = {
   createdAt: string;
   status: "succeeded" | "failed";
   paymentIntentId: string | null;
+};
+
+/** Hvilken belastning en refusjon gjelder. */
+export type RefundTarget = "main" | "deposit" | "extra";
+
+/** Et beløp som er tilbakeført til gjesten – ved avbestilling eller manuelt fra admin. */
+export type Refund = {
+  id: string;
+  target: RefundTarget;
+  /** ExtraCharge.id når target er "extra", ellers null. */
+  extraChargeId: string | null;
+  amount: number;
+  /** Eierens begrunnelse (maks REFUND_REASON_MAX tegn) – lagres også som metadata i Stripe. */
+  reason: string;
+  createdAt: string;
+  stripeRefundId: string | null;
 };
 
 export const DEFAULT_MAIN_CHARGE: MainCharge = {
@@ -96,6 +112,8 @@ export type Booking = {
   mainCharge: MainCharge;
   deposit: Deposit;
   extraCharges: ExtraCharge[];
+  /** Alle tilbakeføringer, eldste først. Se lib/refunds.ts for hvor mye som gjenstår å refundere. */
+  refunds: Refund[];
   guestEmails: GuestEmails;
 
   /** TERMS_VERSION gjesten krysset av for på /book – null på bookinger fra før vilkårene fantes. */

@@ -61,7 +61,13 @@ const CSV_COLUMNS: [string, (b: Booking) => string | number | null][] = [
   ["Totalt (EUR)", (b) => b.pricing.total],
   ["Betaling", (b) => (b.mainCharge ? CHARGE_LABEL[b.mainCharge.status] : null)],
   ["Betalt dato", (b) => b.mainCharge?.paidAt?.slice(0, 10) ?? null],
-  ["Refundert (EUR)", (b) => b.mainCharge?.refundedAmount ?? null],
+  // Hovedbeløpets sum ligger i mainCharge.refundedAmount (også eldre avbestillinger uten loggrad);
+  // depositum og tilleggsbeløp telles fra refusjonsloggen.
+  ["Refundert (EUR)", (b) => {
+    const other = (b.refunds ?? []).filter((r) => r.target !== "main").reduce((sum, r) => sum + r.amount, 0);
+    if (b.mainCharge?.refundedAmount == null && other === 0) return null;
+    return Math.round(((b.mainCharge?.refundedAmount ?? 0) + other) * 100) / 100;
+  }],
   ["Depositum", (b) => (b.deposit ? DEPOSIT_LABEL[b.deposit.status] : null)],
   ["Trukket depositum (EUR)", (b) => b.deposit?.capturedAmount ?? null],
   ["Begrunnelse for trekk", (b) => b.deposit?.captureReason ?? null],

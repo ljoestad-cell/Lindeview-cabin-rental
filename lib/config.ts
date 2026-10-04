@@ -26,6 +26,8 @@ export const DEPOSIT_RESERVE_DAYS_BEFORE_CHECKOUT = 1;
 export const DEPOSIT_HOLD_DAYS = 5;
 /** Maks lengde på begrunnelsen eieren skriver når depositum trekkes. */
 export const DEPOSIT_CAPTURE_REASON_MAX = 200;
+/** Maks lengde på begrunnelsen eieren skriver når et trukket beløp refunderes. */
+export const REFUND_REASON_MAX = DEPOSIT_CAPTURE_REASON_MAX;
 /**
  * Hovedbeløpet belastes automatisk dette antall dager før innsjekk – første
  * dag etter at fristen for gratis avbestilling (FULL_REFUND_DAYS) er ute, så

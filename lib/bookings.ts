@@ -31,7 +31,8 @@ import {
 import * as payments from "@/lib/payments";
 import { isStripeConfigured } from "@/lib/stripe";
 import { getPrices } from "@/lib/prices";
-import { DEFAULT_EXTRAS, quote, type BookingExtras, type Prices } from "@/lib/pricing";
+import { paymentIntentFor, refundableAmount } from "@/lib/refunds";
+import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras, type Prices } from "@/lib/pricing";
 import { getStore } from "@/lib/store";
 import {
   DEFAULT_DEPOSIT,
@@ -42,6 +43,8 @@ import {
   type BookingRequestInput,
   type BookingStatus,
   type ExtraCharge,
+  type Refund,
+  type RefundTarget,
 } from "@/lib/types";
 
 export class BookingValidationError extends Error {}
@@ -64,6 +67,7 @@ function normalizeBooking(booking: Booking): Booking {
     // Bookinger fra før depositum ble lagret på bookingen fikk standardbeløpet.
     deposit: { ...DEFAULT_DEPOSIT, ...booking.deposit, amount: booking.deposit?.amount ?? DEPOSIT_AMOUNT },
     extraCharges: booking.extraCharges ?? [],
+    refunds: booking.refunds ?? [],
     guestEmails: { ...DEFAULT_GUEST_EMAILS, ...booking.guestEmails },
     extras: booking.extras ?? { ...DEFAULT_EXTRAS },
     termsVersion: booking.termsVersion ?? null,
@@ -159,6 +163,7 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     mainCharge: { ...DEFAULT_MAIN_CHARGE },
     deposit: { ...DEFAULT_DEPOSIT, amount: prices.deposit },
     extraCharges: [],
+    refunds: [],
     guestEmails: { ...DEFAULT_GUEST_EMAILS },
     termsVersion: TERMS_VERSION,
     termsAcceptedAt: new Date().toISOString(),
@@ -315,19 +320,28 @@ export async function setStatus(
     }
   }
 
-  if (status === "declined" && updated.mainCharge.status === "paid" && updated.mainCharge.refundedAmount === null) {
-    const amount =
+  if (status === "declined" && updated.mainCharge.status === "paid") {
+    // Det som allerede er refundert (manuelt eller ved en tidligere avbestilling)
+    // trekkes fra, så en booking aldri refunderes mer enn vilkårene sier.
+    const entitled =
       refundMode === "policy"
         ? policyRefundAmount(updated.pricing.total, updated.checkIn, today())
         : updated.pricing.total;
+    const amount = Math.min(
+      refundableAmount(updated, "main"),
+      Math.max(0, Math.round((entitled - (updated.mainCharge.refundedAmount ?? 0)) * 100) / 100),
+    );
     try {
-      const result = amount > 0 ? await payments.refundMainCharge(updated, amount) : { ok: true as const };
-      if (result.ok) {
-        const mainCharge = { ...updated.mainCharge, refundedAmount: amount };
+      if (amount > 0) {
+        const reason = refundMode === "policy" ? "Avbestilling – etter leievilkårene" : "Avbestilling – full refusjon";
+        const result = await applyRefund(updated, "main", null, amount, reason);
+        if (result.ok) updated = result.booking;
+        else console.error("[bookings] Refusjon feilet:", result.error);
+      } else if (updated.mainCharge.refundedAmount === null) {
+        // Ingenting å refundere etter vilkårene – lagres som 0 så admin viser at det er vurdert.
+        const mainCharge = { ...updated.mainCharge, refundedAmount: 0 };
         await store.updateBooking(id, { mainCharge });
         updated = { ...updated, mainCharge };
-      } else {
-        console.error("[bookings] Refusjon feilet:", result.error);
       }
     } catch (err) {
       console.error("[bookings] Kunne ikke refundere hovedbeløp:", err);
@@ -613,6 +627,74 @@ export async function addExtraCharge(
   }
 
   return { ...booking, ...patch };
+}
+
+/**
+ * Refunderer i Stripe og fører refusjonen i bookingens logg. Felles for
+ * avbestilling (setStatus) og manuell refusjon (refundCharge). Refusjonens id
+ * brukes som idempotency-nøkkel, så Stripe aldri utfører samme refusjon to ganger.
+ */
+async function applyRefund(
+  booking: Booking,
+  target: RefundTarget,
+  extraChargeId: string | null,
+  amount: number,
+  reason: string,
+): Promise<{ ok: true; booking: Booking } | { ok: false; error: string }> {
+  const id = randomUUID();
+  const result = await payments.refundPayment(
+    paymentIntentFor(booking, target, extraChargeId),
+    amount,
+    { bookingId: booking.id, target, reason },
+    id,
+  );
+  if (!result.ok) return result;
+
+  const entry: Refund = {
+    id,
+    target,
+    extraChargeId,
+    amount,
+    reason,
+    createdAt: new Date().toISOString(),
+    stripeRefundId: result.paymentIntentId,
+  };
+  const patch: Partial<Booking> = { refunds: [...booking.refunds, entry] };
+  if (target === "main") {
+    patch.mainCharge = {
+      ...booking.mainCharge,
+      refundedAmount: Math.round(((booking.mainCharge.refundedAmount ?? 0) + amount) * 100) / 100,
+    };
+  }
+  await getStore().updateBooking(booking.id, patch);
+  return { ok: true, booking: { ...booking, ...patch } };
+}
+
+/**
+ * Tilbakefører hele eller deler av en vellykket belastning – f.eks. et
+ * tilleggsbeløp trukket ved en feil. Kaster BookingValidationError hvis
+ * beløpet er større enn det som gjenstår, eller Stripe avviser refusjonen.
+ */
+export async function refundCharge(
+  bookingId: string,
+  target: RefundTarget,
+  extraChargeId: string | null,
+  amount: number,
+  reason: string,
+): Promise<Booking | null> {
+  const booking = await loadBooking(bookingId);
+  if (!booking) return null;
+  if (!isStripeConfigured()) throw new BookingValidationError("Stripe er ikke koblet til.");
+
+  const remaining = refundableAmount(booking, target, extraChargeId);
+  if (remaining <= 0) throw new BookingValidationError("Det er ingenting igjen å refundere på denne belastningen.");
+  if (amount > remaining) {
+    throw new BookingValidationError(`Kan refundere maks ${formatEur(remaining)} – resten er allerede tilbakeført.`);
+  }
+
+  const result = await applyRefund(booking, target, extraChargeId, amount, reason);
+  if (!result.ok) throw new BookingValidationError(`Refusjonen feilet: ${result.error}`);
+  return result.booking;
 }
 
 /**

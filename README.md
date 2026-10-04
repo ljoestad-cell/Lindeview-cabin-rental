@@ -285,6 +285,14 @@ Alle priser er i **EUR**, og settes under «Priser» i admin. Betalingsflyten:
    før noe er reservert, hoppes den automatiske reservasjonen over.
 5. **Tilleggsbeløp** (skade, ekstra rengjøring) kan trekkes når som helst fra
    samme lagrede kort, også i `/admin`.
+6. **Refusjon**: er noe trukket ved en feil, har hovedbeløpet, et trukket
+   depositum og hvert tilleggsbeløp en «Refunder»-knapp i `/admin`. Velg
+   beløp (helt eller delvis, flere ganger opp til det som er trukket) og skriv
+   en begrunnelse (maks 200 tegn). Refusjonen vises under belastningen, telles
+   i «Refundert» i CSV-eksporten og lagres som metadata i Stripe. Den kan
+   ikke angres, pengene er hos gjesten etter ca. 5–10 dager, og Stripe-gebyret
+   for den opprinnelige belastningen betales ikke tilbake. Avbestilling av en
+   betalt booking refunderer automatisk og havner i samme logg.
 
 En daglig jobb (Vercel Cron, se [vercel.json](vercel.json)) sjekker og
 utfører belastninger som har forfalt. Alt kan også trigges manuelt fra

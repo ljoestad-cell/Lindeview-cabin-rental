@@ -164,17 +164,34 @@ export async function chargeExtra(
   return offSessionCharge(booking, amount, "extra", { description });
 }
 
-/** Refunderer hovedbeløpet helt, eller delvis med `amount` – brukes når en betalt booking avbestilles. */
-export async function refundMainCharge(booking: Booking, amount?: number): Promise<PaymentResult> {
-  if (!booking.mainCharge.paymentIntentId) {
+/**
+ * Tilbakefører `amount` av en vellykket betaling (hovedbeløp, trukket
+ * depositum eller tilleggsbeløp). `idempotencyKey` hindrer at et dobbeltklikk
+ * eller et nytt forsøk refunderer to ganger. Returnerer refusjonens id.
+ */
+export async function refundPayment(
+  paymentIntentId: string | null,
+  amount: number,
+  metadata: Record<string, string>,
+  idempotencyKey: string,
+): Promise<PaymentResult> {
+  if (!paymentIntentId) {
     return { ok: false, error: "Ingen betaling å refundere." };
   }
   const stripe = getStripe();
   try {
-    const refund = await stripe.refunds.create({
-      payment_intent: booking.mainCharge.paymentIntentId,
-      amount: amount !== undefined ? toMinorUnits(amount) : undefined,
-    });
+    const refund = await stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        amount: toMinorUnits(amount),
+        reason: "requested_by_customer",
+        metadata,
+      },
+      { idempotencyKey },
+    );
+    if (refund.status === "failed" || refund.status === "canceled") {
+      return { ok: false, error: `Stripe avviste refusjonen (${refund.failure_reason ?? refund.status}).` };
+    }
     return { ok: true, paymentIntentId: refund.id };
   } catch (err) {
     if (err instanceof Stripe.errors.StripeError) return { ok: false, error: err.message };
