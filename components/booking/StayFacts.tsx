@@ -1,4 +1,4 @@
-import { MIN_NIGHTS, SEASON_LABEL } from "@/lib/config";
+import { FULL_REFUND_DAYS, MIN_NIGHTS, SEASON_LABEL } from "@/lib/config";
 import { formatEur, type Prices } from "@/lib/pricing";
 
 export default function StayFacts({ prices }: { prices: Prices }) {
@@ -7,6 +7,8 @@ export default function StayFacts({ prices }: { prices: Prices }) {
     { label: "Minimum opphold", value: `${MIN_NIGHTS} netter` },
     { label: "Rengjøringsgebyr", value: formatEur(prices.cleaningFee) },
     { label: "Fiskekort", value: "Inkludert" },
+    { label: "Kajakk", value: "2 stk. – gratis" },
+    { label: "Gratis avbestilling", value: `Inntil ${FULL_REFUND_DAYS} dager før innsjekk` },
     { label: "Sesong", value: SEASON_LABEL },
   ];
 
