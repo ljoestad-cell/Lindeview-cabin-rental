@@ -62,7 +62,9 @@ automatisk i vilkårene:
 
 For en betalt booking har admin to knapper. **«Gjesten avbestiller»**
 refunderer etter tabellen over, og beløpet står på knappen. **«Vi avlyser»**
-refunderer alt. Det som er refundert, vises på bookingen.
+refunderer alt. Det som er refundert, vises på bookingen. Begge (og
+«Avbestill» på ubetalte bookinger) åpner en bekreftelse der du velger om
+gjesten skal få avbestillings-e-post.
 
 Admin kan ikke bekrefte en forespørsel som overlapper en allerede bekreftet
 booking eller en blokkert periode. Det gir en feilmelding i stedet for
@@ -249,6 +251,14 @@ sende e-post:
    kortet via Stripe: kort registrert, booking bekreftet, og når beløpet
    trekkes — eller at det er trukket, ved sen booking. Sendes ikke hvis en
    umiddelbar belastning feiler (da varsles eieren i stedet).
+3. *Booking cancelled* — når du avbestiller en **bekreftet** booking i
+   `/admin`. Før avbestillingen bekreftes, vises en avkrysning «Send e-post
+   til gjesten» (på som standard) – skru den av hvis du allerede har snakket
+   med gjesten. Åpningen tilpasses: «som du ba om» (gjesten ba om det på «Min
+   booking», eller «Gjesten avbestiller»), «vi må dessverre avlyse» («Vi
+   avlyser»), ellers nøytral. E-posten sier hva som faktisk er refundert,
+   eller at ingenting er trukket. Avslag av nye forespørsler sender ingen
+   e-post.
 
 Har lenken utløpt: trykk «Generer ny lenke» og deretter **«Send e-post til
 gjest»** i betalingspanelet — ny lenke sender ikke e-post av seg selv. Admin

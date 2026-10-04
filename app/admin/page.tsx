@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { hasValidSession } from "@/lib/auth";
 import { listBlockedRanges, listForAdmin } from "@/lib/bookings";
+import { guestEmailEnabled } from "@/lib/notifications";
 import { PROPERTY_NAME } from "@/lib/property";
 import AdminCalendar from "@/components/admin/AdminCalendar";
 import AdminHeader from "@/components/admin/AdminHeader";
@@ -35,7 +36,7 @@ export default async function AdminPage() {
         <section className="mt-12">
           <h2 className="font-display text-xl text-brand">Bookingforespørsler</h2>
           <div className="mt-4">
-            <BookingsTable initialBookings={bookings} />
+            <BookingsTable initialBookings={bookings} guestEmailEnabled={guestEmailEnabled()} />
           </div>
         </section>
       </div>

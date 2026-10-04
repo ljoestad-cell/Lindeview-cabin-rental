@@ -28,12 +28,23 @@ const STATUS_STYLE: Record<BookingStatus, string> = {
   declined: "bg-red-100 text-red-700",
 };
 
-export default function BookingsTable({ initialBookings }: { initialBookings: Booking[] }) {
+/** Avbestilling som venter på bekreftelse i panelet. refund er bare satt for betalte bookinger. */
+type PendingCancel = { id: string; refund?: "policy" | "full" };
+
+export default function BookingsTable({
+  initialBookings,
+  guestEmailEnabled,
+}: {
+  initialBookings: Booking[];
+  /** Om e-post til gjester er satt opp (RESEND_FROM_EMAIL) – ellers kan avbestillings-e-posten ikke sendes. */
+  guestEmailEnabled: boolean;
+}) {
   const router = useRouter();
   const [bookings, setBookings] = useState(initialBookings);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [pendingCancel, setPendingCancel] = useState<PendingCancel | null>(null);
 
   /** Henter (og ved behov oppretter) gjestens «Min booking»-lenke og kopierer den. */
   async function copyGuestLink(b: Booking) {
@@ -53,14 +64,18 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
     }
   }
 
-  async function updateStatus(id: string, status: "confirmed" | "declined", refund?: "policy" | "full") {
+  async function updateStatus(
+    id: string,
+    status: "confirmed" | "declined",
+    { refund, notifyGuest = false }: { refund?: "policy" | "full"; notifyGuest?: boolean } = {},
+  ) {
     setBusyId(id);
     setError(null);
     try {
       const res = await fetch(`/api/bookings/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, refund }),
+        body: JSON.stringify({ status, refund, notifyGuest }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -68,6 +83,7 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
         return;
       }
       setBookings((prev) => prev.map((b) => (b.id === id ? data.booking : b)));
+      setPendingCancel(null);
       router.refresh();
     } catch {
       setError("Kunne ikke kontakte serveren.");
@@ -129,6 +145,11 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                 {b.mainCharge.refundedAmount !== null && (
                   <p className="text-sm text-muted">Refundert {formatEur(b.mainCharge.refundedAmount)}</p>
                 )}
+                {b.guestEmails.cancellationSentAt && (
+                  <p className="text-sm text-muted">
+                    Avbestillings-e-post sendt til gjesten {b.guestEmails.cancellationSentAt.slice(0, 10)}
+                  </p>
+                )}
                 {b.cancellationRequest && b.status !== "declined" && (
                   <p className="mt-2 rounded-lg bg-yellow-100 px-3 py-2 text-sm text-yellow-800">
                     Gjesten ba om avbestilling {b.cancellationRequest.requestedAt.slice(0, 10)}
@@ -156,17 +177,16 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                   </>
                 )}
                 {b.status === "confirmed" && b.mainCharge.status !== "paid" && (
-                  <ActionButton
-                    onClick={() => {
-                      if (confirm("Avbestille denne bookingen? Ingenting er trukket ennå.")) updateStatus(b.id, "declined");
-                    }}
-                    disabled={busyId === b.id}
-                  >
+                  <ActionButton onClick={() => setPendingCancel({ id: b.id })} disabled={busyId === b.id}>
                     Avbestill
                   </ActionButton>
                 )}
                 {b.status === "confirmed" && b.mainCharge.status === "paid" && (
-                  <CancelPaidButtons booking={b} busy={busyId === b.id} onCancel={(refund) => updateStatus(b.id, "declined", refund)} />
+                  <CancelPaidButtons
+                    booking={b}
+                    busy={busyId === b.id}
+                    onCancel={(refund) => setPendingCancel({ id: b.id, refund })}
+                  />
                 )}
                 {!b.anonymizedAt && (
                   <ActionButton onClick={() => copyGuestLink(b)} disabled={busyId === b.id}>
@@ -178,6 +198,19 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                 </ActionButton>
               </div>
             </div>
+
+            {pendingCancel?.id === b.id && b.status === "confirmed" && (
+              <CancelConfirm
+                booking={b}
+                refund={pendingCancel.refund}
+                guestEmailEnabled={guestEmailEnabled}
+                busy={busyId === b.id}
+                onConfirm={(notifyGuest) =>
+                  updateStatus(b.id, "declined", { refund: pendingCancel.refund, notifyGuest })
+                }
+                onCancel={() => setPendingCancel(null)}
+              />
+            )}
 
             {b.status === "confirmed" && (
               <PaymentPanel
@@ -208,23 +241,73 @@ function CancelPaidButtons({
   const policyAmount = policyRefundAmount(booking.pricing.total, booking.checkIn, today());
   return (
     <>
-      <ActionButton
-        onClick={() => {
-          if (confirm(`Gjesten avbestiller. Refunder ${formatEur(policyAmount)} etter leievilkårene?`)) onCancel("policy");
-        }}
-        disabled={busy}
-      >
+      <ActionButton onClick={() => onCancel("policy")} disabled={busy}>
         Gjesten avbestiller ({formatEur(policyAmount)} tilbake)
       </ActionButton>
-      <ActionButton
-        onClick={() => {
-          if (confirm(`Vi avlyser. Refunder hele beløpet (${formatEur(booking.pricing.total)})?`)) onCancel("full");
-        }}
-        disabled={busy}
-      >
+      <ActionButton onClick={() => onCancel("full")} disabled={busy}>
         Vi avlyser (full refusjon)
       </ActionButton>
     </>
+  );
+}
+
+/**
+ * Bekreftelse før en bekreftet booking avbestilles – erstatter confirm() så
+ * eieren kan velge om gjesten skal få avbestillings-e-post (standard: ja).
+ */
+function CancelConfirm({
+  booking,
+  refund,
+  guestEmailEnabled,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  booking: Booking;
+  refund?: "policy" | "full";
+  guestEmailEnabled: boolean;
+  busy: boolean;
+  onConfirm: (notifyGuest: boolean) => void;
+  onCancel: () => void;
+}) {
+  const canEmail = guestEmailEnabled && Boolean(booking.email);
+  const [notifyGuest, setNotifyGuest] = useState(canEmail);
+  const summary =
+    refund === "policy"
+      ? `Gjesten avbestiller. ${formatEur(policyRefundAmount(booking.pricing.total, booking.checkIn, today()))} refunderes etter leievilkårene.`
+      : refund === "full"
+        ? `Vi avlyser. Hele beløpet (${formatEur(booking.pricing.total)}) refunderes.`
+        : "Avbestille bookingen? Ingenting er trukket ennå.";
+
+  return (
+    <div className="mt-4 space-y-3 rounded-xl bg-red-50/60 p-4 text-sm ring-1 ring-red-200">
+      <p className="font-medium text-foreground">{summary}</p>
+      <label className="flex items-start gap-2">
+        <input
+          type="checkbox"
+          checked={notifyGuest}
+          disabled={!canEmail}
+          onChange={(e) => setNotifyGuest(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span className={canEmail ? "text-foreground" : "text-muted"}>
+          Send e-post til gjesten om avbestillingen
+          {!canEmail && (
+            <span className="block text-xs">
+              {booking.email ? "E-post til gjester er ikke satt opp (RESEND_FROM_EMAIL)." : "Bookingen har ingen e-postadresse."}
+            </span>
+          )}
+        </span>
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <ActionButton onClick={() => onConfirm(notifyGuest)} disabled={busy} variant="danger">
+          {busy ? "Avbestiller …" : "Bekreft avbestilling"}
+        </ActionButton>
+        <ActionButton onClick={onCancel} disabled={busy}>
+          Avbryt
+        </ActionButton>
+      </div>
+    </div>
   );
 }
 

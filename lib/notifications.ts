@@ -1,4 +1,4 @@
-import { CHARGE_DAYS_BEFORE_CHECKIN, DEPOSIT_HOLD_DAYS } from "@/lib/config";
+import { CHARGE_DAYS_BEFORE_CHECKIN, DEPOSIT_HOLD_DAYS, FULL_REFUND_DAYS } from "@/lib/config";
 import { addDays, fromIso, today } from "@/lib/dates";
 import { OWNER_EMAIL, OWNER_NAME, OWNER_PHONE_DISPLAY, PROPERTY_NAME } from "@/lib/property";
 import { guestBookingUrl, siteUrl } from "@/lib/site";
@@ -405,6 +405,78 @@ export function buildConfirmationEmail(booking: Booking): GuestEmail {
     text,
     html,
   };
+}
+
+/**
+ * Hvem avbestillingen kom fra – styrer åpningen av e-posten. "neutral" når
+ * admin avbestiller en ubetalt booking uten at gjesten har bedt om det (f.eks.
+ * etter en telefonsamtale).
+ */
+export type CancellationInitiator = "guest" | "owner" | "neutral";
+
+/** E-post 3: en bekreftet booking er avbestilt. Ren funksjon – tar bookingen slik den er etter refusjonen. */
+export function buildCancellationEmail(booking: Booking, initiator: CancellationInitiator): GuestEmail {
+  const total = formatAmount(booking.pricing.total);
+  const opening = {
+    guest: `As you requested, your booking at ${PROPERTY_NAME} has been cancelled.`,
+    owner: `Unfortunately we have had to cancel your booking at ${PROPERTY_NAME}. We are very sorry for the inconvenience.`,
+    neutral: `Your booking at ${PROPERTY_NAME} has been cancelled.`,
+  }[initiator];
+
+  const refunded = booking.mainCharge.refundedAmount;
+  let payment: string;
+  if (booking.mainCharge.status !== "paid") {
+    payment = `Nothing has been charged to your card, and no further payments will be taken.`;
+  } else if (refunded === null) {
+    payment = `We will be in touch about the refund of your payment.`;
+  } else if (refunded > 0) {
+    payment =
+      `We have refunded ${formatAmount(refunded)} to your card. Depending on your bank, it usually appears within 5–10 business days.` +
+      (refunded < booking.pricing.total
+        ? ` The remainder of your payment of ${total} is non-refundable under our cancellation policy.`
+        : ``);
+  } else {
+    payment =
+      `Under our cancellation policy, the rental amount of ${total} is non-refundable for cancellations made ` +
+      `less than ${FULL_REFUND_DAYS} days before check-in.`;
+  }
+  const termsUrl = `${siteUrl()}/vilkar`;
+
+  const intro = [`Hi ${booking.name},`, ``, opening];
+  const closing = [`We hope to welcome you another time.`];
+
+  const text = [
+    ...intro,
+    ``,
+    ...textTable(stayLines(booking)),
+    ``,
+    payment,
+    ``,
+    `Rental terms and cancellation policy: ${termsUrl}`,
+    ``,
+    ...closing,
+    ``,
+    ...signatureLines(),
+  ].join("\n");
+
+  const html = htmlDocument(
+    htmlParagraphs(intro) +
+      htmlTable(stayLines(booking)) +
+      htmlParagraphs([payment]) +
+      `<p style="margin:0 0 12px;"><a href="${escapeHtml(termsUrl)}" style="color:#26362a;">Rental terms and cancellation policy</a></p>` +
+      htmlParagraphs([...closing, ``, ...signatureLines()]),
+  );
+
+  return {
+    subject: `Booking cancelled – ${PROPERTY_NAME}, ${formatDate(booking.checkIn)} – ${formatDate(booking.checkOut)}`,
+    text,
+    html,
+  };
+}
+
+/** Kaster ved feil fra Resend. Returnerer false hvis gjeste-e-post ikke er satt opp. */
+export async function notifyGuestOfCancellation(booking: Booking, initiator: CancellationInitiator): Promise<boolean> {
+  return sendGuestEmail(booking, buildCancellationEmail(booking, initiator));
 }
 
 /** Kaster ved feil fra Resend. Returnerer false hvis gjeste-e-post ikke er satt opp. */

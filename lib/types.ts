@@ -82,9 +82,15 @@ export type GuestEmails = {
   approvalSentAt: string | null;
   /** Kort sikret, booking bekreftet – sendes bare én gang. */
   confirmationSentAt: string | null;
+  /** Bekreftet booking avbestilt – sendes bare én gang, og bare hvis eieren lot avkrysningen stå. */
+  cancellationSentAt: string | null;
 };
 
-export const DEFAULT_GUEST_EMAILS: GuestEmails = { approvalSentAt: null, confirmationSentAt: null };
+export const DEFAULT_GUEST_EMAILS: GuestEmails = {
+  approvalSentAt: null,
+  confirmationSentAt: null,
+  cancellationSentAt: null,
+};
 
 /** Gjesten har bedt om avbestilling via «Min booking» – eieren avbestiller selv i admin. */
 export type CancellationRequest = {

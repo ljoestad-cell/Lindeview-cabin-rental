@@ -24,11 +24,13 @@ import { parseIcsBusyRanges } from "@/lib/ical";
 import {
   guestEmailEnabled,
   notifyGuestOfApproval,
+  notifyGuestOfCancellation,
   notifyGuestOfConfirmation,
   notifyOwnerOfBooking,
   notifyOwnerOfCancellationRequest,
   notifyOwnerOfDoubleBooking,
   notifyOwnerOfPaymentIssue,
+  type CancellationInitiator,
 } from "@/lib/notifications";
 import * as payments from "@/lib/payments";
 import { isStripeConfigured } from "@/lib/stripe";
@@ -335,6 +337,13 @@ export async function regeneratePaymentLink(id: string): Promise<Booking | null>
  */
 export type RefundMode = "policy" | "full";
 
+export type SetStatusOptions = {
+  /** Bare for betalte bookinger. Uten verdi refunderes alt (samme som "full"). */
+  refundMode?: RefundMode;
+  /** Send avbestillings-e-post til gjesten når en bekreftet booking avbestilles. */
+  notifyGuest?: boolean;
+};
+
 /**
  * Bekrefter eller avslår/avbestiller en booking. Ved bekreftelse sjekkes
  * overlapp på nytt – to ventende forespørsler på samme datoer kan ellers
@@ -343,7 +352,7 @@ export type RefundMode = "policy" | "full";
 export async function setStatus(
   id: string,
   status: BookingStatus,
-  refundMode: RefundMode = "full",
+  { refundMode, notifyGuest = false }: SetStatusOptions = {},
 ): Promise<Booking | null> {
   const store = getStore();
   const before = await loadBooking(id);
@@ -420,7 +429,38 @@ export async function setStatus(
     }
   }
 
+  // Etter refusjonen, så e-posten oppgir det som faktisk er refundert.
+  if (status === "declined" && before.status === "confirmed" && notifyGuest) {
+    updated = await sendCancellationEmail(updated, cancellationInitiator(updated, refundMode));
+  }
+
   return updated;
+}
+
+/**
+ * Hvem avbestillingen kom fra: gjesten hvis de ba om det på «Min booking»
+ * eller eieren valgte «Gjesten avbestiller»; eieren ved «Vi avlyser»; ellers
+ * nøytralt (ubetalt booking avbestilt i admin).
+ */
+function cancellationInitiator(booking: Booking, refundMode: RefundMode | undefined): CancellationInitiator {
+  if (booking.cancellationRequest || refundMode === "policy") return "guest";
+  if (refundMode === "full") return "owner";
+  return "neutral";
+}
+
+/** E-post 3: avbestilling. Sendes bare én gang; feil logges og stopper ikke avbestillingen. */
+async function sendCancellationEmail(booking: Booking, initiator: CancellationInitiator): Promise<Booking> {
+  if (booking.guestEmails.cancellationSentAt) return booking;
+  try {
+    const sent = await notifyGuestOfCancellation(booking, initiator);
+    if (!sent) return booking;
+    const guestEmails = { ...booking.guestEmails, cancellationSentAt: new Date().toISOString() };
+    await getStore().updateBooking(booking.id, { guestEmails });
+    return { ...booking, guestEmails };
+  } catch (err) {
+    console.error("[bookings] Kunne ikke sende avbestillings-e-post til gjesten:", err);
+    return booking;
+  }
 }
 
 export async function deleteBooking(id: string): Promise<void> {

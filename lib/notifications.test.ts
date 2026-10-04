@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildApprovalEmail,
+  buildCancellationEmail,
   buildConfirmationEmail,
   notifyGuestOfApproval,
   notifyGuestOfConfirmation,
@@ -80,6 +81,39 @@ describe("buildConfirmationEmail", () => {
     const booking = makeBooking({ mainCharge: { status: "paid", chargeAt: "2027-07-01" } as Booking["mainCharge"] });
     const { text } = buildConfirmationEmail(booking);
     expect(text).toContain("Your payment of €2,550.00 has been received");
+  });
+});
+
+describe("buildCancellationEmail", () => {
+  const paid = (refundedAmount: number | null) =>
+    makeBooking({ mainCharge: { status: "paid", refundedAmount } as Booking["mainCharge"] });
+
+  it("åpner ulikt etter hvem som avbestilte", () => {
+    expect(buildCancellationEmail(makeBooking(), "guest").text).toContain("As you requested, your booking");
+    expect(buildCancellationEmail(makeBooking(), "owner").text).toContain("Unfortunately we have had to cancel");
+    expect(buildCancellationEmail(makeBooking(), "neutral").text).toContain("Your booking at Lindeview has been cancelled.");
+  });
+
+  it("sier at ingenting er trukket når hovedbeløpet ikke er betalt", () => {
+    const { subject, text } = buildCancellationEmail(makeBooking(), "guest");
+    expect(subject).toContain("Booking cancelled");
+    expect(text).toContain("Nothing has been charged to your card");
+  });
+
+  it("oppgir full og delvis refusjon", () => {
+    expect(buildCancellationEmail(paid(2550), "owner").text).toContain("We have refunded €2,550.00 to your card");
+    const partial = buildCancellationEmail(paid(1000), "guest").text;
+    expect(partial).toContain("We have refunded €1,000.00");
+    expect(partial).toContain("remainder of your payment of €2,550.00 is non-refundable");
+  });
+
+  it("forklarer vilkårene når ingenting refunderes, og lover ikke refusjon som feilet", () => {
+    expect(buildCancellationEmail(paid(0), "guest").text).toContain("non-refundable for cancellations made less than 30 days");
+    expect(buildCancellationEmail(paid(null), "owner").text).toContain("We will be in touch about the refund");
+  });
+
+  it("escaper HTML i gjestens navn", () => {
+    expect(buildCancellationEmail(makeBooking(), "guest").html).toContain("Anna &lt;b&gt;Smith&lt;/b&gt;");
   });
 });
 

@@ -24,12 +24,13 @@ export async function PATCH(request: NextRequest, ctx: RouteContext<"/api/bookin
     return NextResponse.json({ error: "Status må være 'confirmed' eller 'declined'." }, { status: 400 });
   }
 
-  const refund = (body as { refund?: unknown })?.refund;
-  const refundMode: RefundMode = refund === "policy" ? "policy" : "full";
+  const { refund, notifyGuest } = body as { refund?: unknown; notifyGuest?: unknown };
+  // Uten refund-valg (ubetalt booking) refunderes ingenting å snakke om, og avbestillingen regnes som nøytral.
+  const refundMode: RefundMode | undefined = refund === "policy" || refund === "full" ? refund : undefined;
 
   let updated;
   try {
-    updated = await setStatus(id, status as "confirmed" | "declined", refundMode);
+    updated = await setStatus(id, status as "confirmed" | "declined", { refundMode, notifyGuest: notifyGuest === true });
   } catch (err) {
     if (err instanceof BookingValidationError) {
       return NextResponse.json({ error: err.message }, { status: 409 });
