@@ -7,7 +7,7 @@ export default function StayFacts({ prices }: { prices: Prices }) {
     { label: "Minimum opphold", value: `${MIN_NIGHTS} netter` },
     { label: "Rengjøringsgebyr", value: formatEur(prices.cleaningFee) },
     { label: "Fiskekort", value: "Inkludert" },
-    { label: "Kajakk", value: "2 stk. – gratis" },
+    { label: "Kajakk – 2 stk.", value: "Inkludert" },
     { label: "Gratis avbestilling", value: `Inntil ${FULL_REFUND_DAYS} dager før innsjekk` },
     { label: "Sesong", value: SEASON_LABEL },
   ];
