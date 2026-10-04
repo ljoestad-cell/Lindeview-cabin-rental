@@ -233,6 +233,11 @@ sende e-post:
 4. (Valgfritt, krever verifisert domene) `RESEND_FROM_EMAIL` for å sende fra
    f.eks. `Lindeview <booking@lindeview.no>` i stedet for standard
    `onboarding@resend.dev`.
+5. (Valgfritt, krever `RESEND_FROM_EMAIL`) `BOOKING_REQUEST_EXTRA_EMAILS`:
+   flere adresser, kommaseparert, som også skal varsles om **nye
+   bookingforespørsler** – bare det, ikke betalingsfeil, avbestillinger o.l.
+   Hver får sin egen e-post. Ligger i miljøvariabler og ikke i koden fordi
+   repoet er offentlig.
 
 **Til gjesten (på engelsk):**
 

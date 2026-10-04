@@ -93,6 +93,18 @@ async function sendGuestEmail(booking: Booking, email: GuestEmail): Promise<bool
   return true;
 }
 
+/**
+ * Ekstra mottakere av varsel om nye bookingforespørsler (bare det varselet),
+ * kommaseparert i BOOKING_REQUEST_EXTRA_EMAILS. Ligger i miljøet, ikke i
+ * koden, fordi repoet er offentlig.
+ */
+export function bookingRequestExtraRecipients(): string[] {
+  return (process.env.BOOKING_REQUEST_EXTRA_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter((e) => e.includes("@"));
+}
+
 /** Best-effort – kaster videre ved feil, kalleren fanger og logger. */
 export async function notifyOwnerOfBooking(booking: Booking): Promise<void> {
   const text = [
@@ -102,7 +114,20 @@ export async function notifyOwnerOfBooking(booking: Booking): Promise<void> {
     `Logg inn på /admin for å se detaljene og svare.`,
   ].join("\n");
 
-  await sendOwnerEmail(`Ny bookingforespørsel: ${booking.checkIn} – ${booking.checkOut}`, text, booking.email);
+  const subject = `Ny bookingforespørsel: ${booking.checkIn} – ${booking.checkOut}`;
+  await sendOwnerEmail(subject, text, booking.email);
+
+  // Egen e-post per ekstra mottaker, så en feil der aldri stopper eierens varsel.
+  // Krever verifisert avsender – sandkassen (onboarding@resend.dev) når bare kontoens egen adresse.
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !process.env.RESEND_FROM_EMAIL) return;
+  for (const to of bookingRequestExtraRecipients()) {
+    try {
+      await sendEmail(apiKey, { to, subject, text, replyTo: booking.email });
+    } catch (err) {
+      console.error(`[notifications] Kunne ikke varsle ${to} om bookingforespørsel:`, err);
+    }
+  }
 }
 
 /**
