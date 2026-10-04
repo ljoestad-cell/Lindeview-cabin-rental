@@ -535,6 +535,7 @@ export async function manageDeposit(
   bookingId: string,
   action: "hold" | "capture" | "release",
   amount?: number,
+  reason?: string,
 ): Promise<Booking | null> {
   const booking = await loadBooking(bookingId);
   if (!booking) return null;
@@ -547,7 +548,7 @@ export async function manageDeposit(
     : action === "hold"
       ? await payments.holdDeposit(booking)
       : action === "capture"
-        ? await payments.captureDeposit(booking, amount)
+        ? await payments.captureDeposit(booking, amount, reason)
         : await payments.releaseDeposit(booking);
 
   if (!result.ok) {
@@ -570,7 +571,9 @@ export async function manageDeposit(
       lastError: null,
       ...(action === "hold" ? { heldAt: new Date().toISOString() } : {}),
       ...(action !== "hold" ? { resolvedAt: new Date().toISOString() } : {}),
-      ...(action === "capture" ? { capturedAmount: amount ?? booking.deposit.amount } : {}),
+      ...(action === "capture"
+        ? { capturedAmount: amount ?? booking.deposit.amount, captureReason: reason ?? null }
+        : {}),
     },
   };
   await store.updateBooking(bookingId, patch);

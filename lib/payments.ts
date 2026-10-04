@@ -123,7 +123,7 @@ export async function holdDeposit(booking: Booking): Promise<PaymentResult> {
 }
 
 /** Trekker et reservert depositum – helt eller delvis (f.eks. ved skade). */
-export async function captureDeposit(booking: Booking, amount?: number): Promise<PaymentResult> {
+export async function captureDeposit(booking: Booking, amount?: number, reason?: string): Promise<PaymentResult> {
   if (!booking.deposit.paymentIntentId) {
     return { ok: false, error: "Ingen reservasjon å trekke fra." };
   }
@@ -131,6 +131,7 @@ export async function captureDeposit(booking: Booking, amount?: number): Promise
   try {
     const intent = await stripe.paymentIntents.capture(booking.deposit.paymentIntentId, {
       amount_to_capture: amount !== undefined ? toMinorUnits(amount) : undefined,
+      metadata: reason ? { captureReason: reason } : undefined,
     });
     return { ok: true, paymentIntentId: intent.id };
   } catch (err) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DEPOSIT_HOLD_DAYS } from "@/lib/config";
+import { DEPOSIT_CAPTURE_REASON_MAX, DEPOSIT_HOLD_DAYS } from "@/lib/config";
 import { addDays } from "@/lib/dates";
 import { formatEur } from "@/lib/pricing";
 import type { Booking } from "@/lib/types";
@@ -24,6 +24,8 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [captureAmount, setCaptureAmount] = useState(String(booking.deposit.amount));
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureReason, setCaptureReason] = useState("");
   const [extraAmount, setExtraAmount] = useState("");
   const [extraDesc, setExtraDesc] = useState("");
 
@@ -172,12 +174,7 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
                 max={booking.deposit.amount}
                 className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
               />
-              <SmallButton
-                busy={busy === "deposit-capture"}
-                onClick={() =>
-                  run("deposit-capture", `${base}/deposit`, { action: "capture", amount: Number(captureAmount) })
-                }
-              >
+              <SmallButton busy={false} disabled={captureOpen} onClick={() => setCaptureOpen(true)}>
                 Trekk
               </SmallButton>
               <SmallButton
@@ -187,12 +184,50 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
                 Frigi depositum
               </SmallButton>
             </div>
+            {captureOpen && (
+              <div className="space-y-1.5 pt-1">
+                <label className="block text-xs font-medium text-foreground" htmlFor={`capture-reason-${booking.id}`}>
+                  Hvorfor trekkes {captureAmount ? formatEur(Number(captureAmount)) : "beløpet"}?
+                </label>
+                <textarea
+                  id={`capture-reason-${booking.id}`}
+                  value={captureReason}
+                  onChange={(e) => setCaptureReason(e.target.value)}
+                  maxLength={DEPOSIT_CAPTURE_REASON_MAX}
+                  rows={3}
+                  placeholder="F.eks. knust glassbord i stua"
+                  className="w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <SmallButton
+                    disabled={!captureReason.trim() || !captureAmount}
+                    busy={busy === "deposit-capture"}
+                    onClick={() =>
+                      run("deposit-capture", `${base}/deposit`, {
+                        action: "capture",
+                        amount: Number(captureAmount),
+                        reason: captureReason,
+                      })
+                    }
+                  >
+                    Bekreft trekk
+                  </SmallButton>
+                  <SmallButton busy={false} onClick={() => setCaptureOpen(false)}>
+                    Avbryt
+                  </SmallButton>
+                  <span className="ml-auto text-xs text-muted">
+                    {captureReason.length}/{DEPOSIT_CAPTURE_REASON_MAX}
+                  </span>
+                </div>
+              </div>
+            )}
           </>
         )}
         {booking.deposit.status === "captured" && (
           <p className="text-emerald-700">
             Trukket {formatEur(booking.deposit.capturedAmount ?? booking.deposit.amount)}
-            {booking.deposit.resolvedAt && ` (${booking.deposit.resolvedAt.slice(0, 10)})`}.
+            {booking.deposit.resolvedAt && ` (${booking.deposit.resolvedAt.slice(0, 10)})`}
+            {booking.deposit.captureReason && <span className="text-muted"> – {booking.deposit.captureReason}</span>}
           </p>
         )}
         {booking.deposit.status === "released" && (

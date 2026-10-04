@@ -26,6 +26,8 @@ export type Deposit = {
   resolvedAt: string | null;
   /** Satt hvis bare deler av depositumet ble trukket. */
   capturedAmount: number | null;
+  /** Eierens begrunnelse for trekket (maks DEPOSIT_CAPTURE_REASON_MAX tegn) – lagres også som metadata i Stripe. */
+  captureReason: string | null;
   lastError: string | null;
 };
 
@@ -54,6 +56,7 @@ export const DEFAULT_DEPOSIT: Omit<Deposit, "amount"> = {
   heldAt: null,
   resolvedAt: null,
   capturedAmount: null,
+  captureReason: null,
   lastError: null,
 };
 

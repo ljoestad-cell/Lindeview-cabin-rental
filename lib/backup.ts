@@ -64,6 +64,7 @@ const CSV_COLUMNS: [string, (b: Booking) => string | number | null][] = [
   ["Refundert (EUR)", (b) => b.mainCharge?.refundedAmount ?? null],
   ["Depositum", (b) => (b.deposit ? DEPOSIT_LABEL[b.deposit.status] : null)],
   ["Trukket depositum (EUR)", (b) => b.deposit?.capturedAmount ?? null],
+  ["Begrunnelse for trekk", (b) => b.deposit?.captureReason ?? null],
   ["Tilleggsbeløp (EUR)", (b) =>
     (b.extraCharges ?? []).filter((c) => c.status === "succeeded").reduce((sum, c) => sum + c.amount, 0)],
   ["Opprettet", (b) => b.createdAt.slice(0, 10)],

@@ -24,6 +24,8 @@ export const DEPOSIT_AMOUNT = 1000;
 export const DEPOSIT_RESERVE_DAYS_BEFORE_CHECKOUT = 1;
 /** Depositum frigis normalt innen dette antall dager etter utsjekk (etter inspeksjon). */
 export const DEPOSIT_HOLD_DAYS = 5;
+/** Maks lengde på begrunnelsen eieren skriver når depositum trekkes. */
+export const DEPOSIT_CAPTURE_REASON_MAX = 200;
 /**
  * Hovedbeløpet belastes automatisk dette antall dager før innsjekk – første
  * dag etter at fristen for gratis avbestilling (FULL_REFUND_DAYS) er ute, så

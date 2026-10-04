@@ -279,7 +279,9 @@ Alle priser er i **EUR**, og settes under «Priser» i admin. Betalingsflyten:
    hos de fleste banker, så det holdes til rett etter oppholdet i stedet for
    å strekke seg over hele det). Det frigis normalt innen 5 dager etter
    utsjekk: inspiser hytta og enten trekk (helt/delvis) eller frigi det i
-   `/admin`. «Frigi depositum» kansellerer reservasjonen i Stripe; brukes den
+   `/admin`. Ved trekk skriver du beløpet og en begrunnelse (maks 200 tegn),
+   som vises i admin, i CSV-eksporten og som metadata på betalingen i Stripe.
+   «Frigi depositum» kansellerer reservasjonen i Stripe; brukes den
    før noe er reservert, hoppes den automatiske reservasjonen over.
 5. **Tilleggsbeløp** (skade, ekstra rengjøring) kan trekkes når som helst fra
    samme lagrede kort, også i `/admin`.
