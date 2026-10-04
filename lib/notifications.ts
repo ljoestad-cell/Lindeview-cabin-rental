@@ -1,7 +1,7 @@
 import { CHARGE_DAYS_BEFORE_CHECKIN, DEPOSIT_HOLD_DAYS } from "@/lib/config";
 import { addDays, fromIso, today } from "@/lib/dates";
 import { OWNER_EMAIL, OWNER_NAME, OWNER_PHONE_DISPLAY, PROPERTY_NAME } from "@/lib/property";
-import { siteUrl } from "@/lib/site";
+import { guestBookingUrl, siteUrl } from "@/lib/site";
 import type { Booking } from "@/lib/types";
 
 /**
@@ -123,6 +123,21 @@ export async function notifyOwnerOfPaymentIssue(booking: Booking, message: strin
   await sendOwnerEmail(`Betaling feilet: ${booking.name} (${booking.checkIn})`, text, booking.email);
 }
 
+/** Gjesten har bedt om avbestilling via «Min booking». Best-effort, samme mønster som de andre varslene. */
+export async function notifyOwnerOfCancellationRequest(booking: Booking): Promise<void> {
+  const message = booking.cancellationRequest?.message;
+  const text = [
+    `${booking.name} ber om å avbestille sin booking på ${PROPERTY_NAME}.`,
+    `${booking.checkIn} – ${booking.checkOut} (${booking.nights} netter).`,
+    ...(message ? [``, `Melding fra gjesten:`, message] : []),
+    ``,
+    `Bookingen er ikke avbestilt ennå. Logg inn på /admin for å avbestille (refusjon etter vilkårene`,
+    `eller full refusjon), eller svar på denne e-posten for å kontakte gjesten.`,
+  ].join("\n");
+
+  await sendOwnerEmail(`Ønsker avbestilling: ${booking.name} (${booking.checkIn})`, text, booking.email);
+}
+
 /**
  * Varsler eieren når Airbnb-kalendersynken finner en periode som overlapper
  * med en allerede bekreftet booking – et tegn på at samme datoer kan være
@@ -197,6 +212,18 @@ function depositSentence(booking: Booking): string {
     `the day before check-out, and released after we have inspected the cabin – normally within ${DEPOSIT_HOLD_DAYS} days ` +
     `after check-out.`
   );
+}
+
+/** Lenke til gjestens «Min booking»-side – tom hvis bookingen ikke har token. */
+function manageBookingLink(booking: Booking): { text: string[]; html: string } {
+  if (!booking.guestToken) return { text: [], html: "" };
+  const url = guestBookingUrl(booking.guestToken);
+  return {
+    text: [`View your booking (status, payment card, cancellation): ${url}`, ``],
+    html:
+      `<p style="margin:0 0 12px;"><a href="${escapeHtml(url)}" style="color:#26362a;">` +
+      `View your booking</a> – status, payment card and cancellation.</p>`,
+  };
 }
 
 function signatureLines(): string[] {
@@ -280,6 +307,7 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
     ``,
     ...plan,
     ``,
+    ...manageBookingLink(booking).text,
     ...signatureLines(),
   ].join("\n");
 
@@ -297,6 +325,7 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
       htmlParagraphs([chargeSentence, ``, depositSentence(booking), ``,
         `You will receive a final confirmation as soon as your payment method has been verified.`]) +
       `<p style="margin:0 0 12px;"><a href="${escapeHtml(termsUrl)}" style="color:#26362a;">Rental terms and cancellation policy</a></p>` +
+      manageBookingLink(booking).html +
       htmlParagraphs(signatureLines()),
   );
 
@@ -334,6 +363,7 @@ export function buildConfirmationEmail(booking: Booking): GuestEmail {
     ``,
     `We will be in touch with arrival details closer to your stay.`,
     ``,
+    ...manageBookingLink(booking).text,
     ...signatureLines(),
   ].join("\n");
 
@@ -341,6 +371,7 @@ export function buildConfirmationEmail(booking: Booking): GuestEmail {
     htmlParagraphs(intro) +
       htmlTable(rows, { boldLast: true }) +
       htmlParagraphs([...payment, ``, `We will be in touch with arrival details closer to your stay.`]) +
+      manageBookingLink(booking).html +
       htmlParagraphs(signatureLines()),
   );
 

@@ -78,6 +78,17 @@ export function formatSeasonLabel(start: string, endExclusive: string): string {
   return `${from} – ${full.format(fromIso(lastNight))}`;
 }
 
+/** «lørdag 10. juli 2027» – for datoer gjesten skal lese. */
+export function formatDateLong(iso: string): string {
+  return new Intl.DateTimeFormat("nb-NO", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(fromIso(iso));
+}
+
 /** True hvis [checkIn, checkOut) ligger helt innenfor [seasonStart, seasonEnd). */
 export function isWithinSeason(
   checkIn: string,

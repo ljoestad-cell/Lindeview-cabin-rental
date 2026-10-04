@@ -1,6 +1,6 @@
 import Stripe from "stripe";
 import { CURRENCY } from "@/lib/config";
-import { siteUrl } from "@/lib/site";
+import { guestBookingUrl, siteUrl } from "@/lib/site";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import type { Booking } from "@/lib/types";
 
@@ -63,7 +63,8 @@ export async function createSecureCardSession(
     customer: customerId,
     payment_method_types: ["card"],
     success_url: `${siteUrl()}/book/sikret?booking=${booking.id}`,
-    cancel_url: `${siteUrl()}/book`,
+    // Avbryter gjesten, havner de tilbake på sin egen bookingside (eldre bookinger uten token: /book).
+    cancel_url: booking.guestToken ? guestBookingUrl(booking.guestToken) : `${siteUrl()}/book`,
     metadata: { bookingId: booking.id },
   });
 

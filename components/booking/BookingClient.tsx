@@ -56,6 +56,8 @@ export default function BookingClient({ availability }: { availability: Availabi
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  /** Token til gjestens «Min booking»-side, fra svaret på innsendingen. */
+  const [guestToken, setGuestToken] = useState<string | null>(null);
 
   const canSubmit = Boolean(range.checkIn && range.checkOut) && form.acceptedTerms && !submitting;
 
@@ -93,6 +95,7 @@ export default function BookingClient({ availability }: { availability: Availabi
         return;
       }
 
+      setGuestToken(data.booking?.guestToken ?? null);
       setSuccess(true);
       router.refresh();
     } catch {
@@ -111,10 +114,20 @@ export default function BookingClient({ availability }: { availability: Availabi
           {range.checkIn} – {range.checkOut} · {formatEur(total)} totalt. Vi tar kontakt på{" "}
           {form.email} så snart forespørselen er behandlet.
         </p>
+        {guestToken && (
+          <p className="mt-4 text-sm text-muted">
+            Følg forespørselen din her:{" "}
+            <Link href={`/booking/${guestToken}`} className="font-medium text-accent underline">
+              Se forespørselen din
+            </Link>{" "}
+            – ta vare på lenken. Den kommer også i e-posten når forespørselen er godkjent.
+          </p>
+        )}
         <button
           type="button"
           onClick={() => {
             setSuccess(false);
+            setGuestToken(null);
             setRange({ checkIn: null, checkOut: null });
             setForm(EMPTY_FORM);
             setExtras(DEFAULT_EXTRAS);

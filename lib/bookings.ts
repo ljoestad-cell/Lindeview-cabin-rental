@@ -18,6 +18,7 @@ import {
 } from "@/lib/config";
 import { policyRefundAmount } from "@/lib/cancellation";
 import { findConflict } from "@/lib/conflicts";
+import { canRequestCancellation, canUpdateCard } from "@/lib/guest";
 import { addDays, addMonths, isIsoDate, isWithinSeason, nightsBetween, rangesOverlap, today } from "@/lib/dates";
 import { parseIcsBusyRanges } from "@/lib/ical";
 import {
@@ -25,6 +26,7 @@ import {
   notifyGuestOfApproval,
   notifyGuestOfConfirmation,
   notifyOwnerOfBooking,
+  notifyOwnerOfCancellationRequest,
   notifyOwnerOfDoubleBooking,
   notifyOwnerOfPaymentIssue,
 } from "@/lib/notifications";
@@ -33,7 +35,9 @@ import { isStripeConfigured } from "@/lib/stripe";
 import { getPrices } from "@/lib/prices";
 import { paymentIntentFor, refundableAmount } from "@/lib/refunds";
 import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras, type Prices } from "@/lib/pricing";
+import { guestBookingUrl } from "@/lib/site";
 import { getStore } from "@/lib/store";
+import { tokensMatch } from "@/lib/tokens";
 import {
   DEFAULT_DEPOSIT,
   DEFAULT_GUEST_EMAILS,
@@ -69,6 +73,8 @@ function normalizeBooking(booking: Booking): Booking {
     extraCharges: booking.extraCharges ?? [],
     refunds: booking.refunds ?? [],
     guestEmails: { ...DEFAULT_GUEST_EMAILS, ...booking.guestEmails },
+    guestToken: booking.guestToken ?? null,
+    cancellationRequest: booking.cancellationRequest ?? null,
     extras: booking.extras ?? { ...DEFAULT_EXTRAS },
     termsVersion: booking.termsVersion ?? null,
     termsAcceptedAt: booking.termsAcceptedAt ?? null,
@@ -165,6 +171,8 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     extraCharges: [],
     refunds: [],
     guestEmails: { ...DEFAULT_GUEST_EMAILS },
+    guestToken: randomUUID(),
+    cancellationRequest: null,
     termsVersion: TERMS_VERSION,
     termsAcceptedAt: new Date().toISOString(),
     anonymizedAt: null,
@@ -208,6 +216,69 @@ async function refreshSecureCardLink(booking: Booking): Promise<Booking> {
   return { ...booking, ...patch };
 }
 
+/**
+ * Sørger for at bookingen har en «Min booking»-token. Bookinger fra før
+ * lenken fantes får en ved første behov (e-post eller «Kopier gjestelenke»).
+ */
+export async function ensureGuestToken(booking: Booking): Promise<Booking> {
+  if (booking.guestToken) return booking;
+  const guestToken = randomUUID();
+  await getStore().updateBooking(booking.id, { guestToken });
+  return { ...booking, guestToken };
+}
+
+/** Admin: gjestens «Min booking»-lenke, opprettet ved behov. */
+export async function getGuestLink(id: string): Promise<string | null> {
+  const booking = await loadBooking(id);
+  if (!booking) return null;
+  if (booking.anonymizedAt) throw new BookingValidationError("Bookingen er anonymisert.");
+  const withToken = await ensureGuestToken(booking);
+  return guestBookingUrl(withToken.guestToken!);
+}
+
+/** Gjestens «Min booking»-side: slår opp på hemmelig token. Anonymiserte bookinger finnes ikke lenger for gjesten. */
+export async function getBookingByGuestToken(token: string): Promise<Booking | null> {
+  if (!token) return null;
+  const bookings = await loadAllBookings();
+  const match = bookings.find((b) => b.guestToken && tokensMatch(token, b.guestToken));
+  return match && !match.anonymizedAt ? match : null;
+}
+
+/**
+ * Gjesten ber om avbestilling. Endrer ikke status – eieren får e-post og
+ * avbestiller selv i admin (med refusjon etter vilkårene).
+ */
+export async function requestCancellation(booking: Booking, message: string): Promise<Booking> {
+  if (!canRequestCancellation(booking, today())) {
+    throw new BookingValidationError("Denne bookingen kan ikke avbestilles herfra – ta kontakt med oss.");
+  }
+  const cancellationRequest = { requestedAt: new Date().toISOString(), message };
+  await getStore().updateBooking(booking.id, { cancellationRequest });
+  const updated = { ...booking, cancellationRequest };
+  try {
+    await notifyOwnerOfCancellationRequest(updated);
+  } catch (err) {
+    console.error("[bookings] Kunne ikke varsle eieren om avbestillingsforespørsel:", err);
+  }
+  return updated;
+}
+
+/**
+ * Gjesten vil sikre eller bytte kort fra «Min booking». Lager alltid en ny
+ * Checkout-lenke (e-postlenken utløper etter et døgn). Returnerer URL-en.
+ */
+export async function startGuestCardUpdate(booking: Booking): Promise<string> {
+  if (!canUpdateCard(booking)) {
+    throw new BookingValidationError("Kortet kan ikke endres på denne bookingen.");
+  }
+  if (!isStripeConfigured()) {
+    throw new BookingValidationError("Betaling er ikke tilgjengelig akkurat nå – ta kontakt med oss.");
+  }
+  const updated = await refreshSecureCardLink(booking);
+  if (!updated.secureCardUrl) throw new BookingValidationError("Kunne ikke lage betalingslenke – prøv igjen.");
+  return updated.secureCardUrl;
+}
+
 /** Henter én booking (admin-bruk). Returnerer null hvis den ikke finnes. */
 export async function getBookingById(id: string): Promise<Booking | null> {
   return loadBooking(id);
@@ -215,6 +286,7 @@ export async function getBookingById(id: string): Promise<Booking | null> {
 
 /** Sender e-post 1 (godkjent + betalingslenke) og noterer tidspunktet. Kaster ved feil fra Resend. */
 async function sendApprovalEmail(booking: Booking): Promise<Booking> {
+  booking = await ensureGuestToken(booking);
   const sent = await notifyGuestOfApproval(booking);
   if (!sent) return booking;
   const guestEmails = { ...booking.guestEmails, approvalSentAt: new Date().toISOString() };
@@ -493,6 +565,7 @@ async function sendConfirmationEmail(booking: Booking): Promise<void> {
   if (booking.guestEmails.confirmationSentAt) return;
   if (booking.mainCharge.status !== "card_saved" && booking.mainCharge.status !== "paid") return;
   try {
+    booking = await ensureGuestToken(booking);
     const sent = await notifyGuestOfConfirmation(booking);
     if (!sent) return;
     const guestEmails = { ...booking.guestEmails, confirmationSentAt: new Date().toISOString() };
@@ -754,6 +827,8 @@ export async function anonymizeExpiredBookings(): Promise<string[]> {
       phone: "",
       message: "",
       secureCardUrl: null,
+      guestToken: null,
+      cancellationRequest: null,
       anonymizedAt: new Date().toISOString(),
     });
     anonymized.push(b.id);

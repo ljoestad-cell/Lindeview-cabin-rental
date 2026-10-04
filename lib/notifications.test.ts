@@ -82,6 +82,26 @@ describe("buildConfirmationEmail", () => {
   });
 });
 
+describe("«Min booking»-lenke i gjeste-e-postene", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("tas med i begge e-postene når bookingen har token", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://lindeview.no");
+    const booking = makeBooking({ guestToken: "tok-123" });
+    const url = "https://lindeview.no/booking/tok-123";
+    for (const email of [buildApprovalEmail(booking, "2027-01-15"), buildConfirmationEmail(booking)]) {
+      expect(email.text).toContain(`View your booking (status, payment card, cancellation): ${url}`);
+      expect(email.html).toContain(`href="${url}"`);
+    }
+  });
+
+  it("utelates for eldre bookinger uten token", () => {
+    const { text, html } = buildConfirmationEmail(makeBooking({ guestToken: null }));
+    expect(text).not.toContain("View your booking");
+    expect(html).not.toContain("/booking/");
+  });
+});
+
 describe("sending til gjesten", () => {
   afterEach(() => {
     vi.unstubAllEnvs();

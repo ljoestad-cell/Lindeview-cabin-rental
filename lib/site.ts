@@ -10,3 +10,8 @@ export function siteUrl(): string {
   }
   return "http://localhost:3000";
 }
+
+/** Gjestens «Min booking»-lenke – hemmelig, sendes bare til gjesten selv. */
+export function guestBookingUrl(guestToken: string): string {
+  return `${siteUrl()}/booking/${guestToken}`;
+}

@@ -86,6 +86,13 @@ export type GuestEmails = {
 
 export const DEFAULT_GUEST_EMAILS: GuestEmails = { approvalSentAt: null, confirmationSentAt: null };
 
+/** Gjesten har bedt om avbestilling via «Min booking» – eieren avbestiller selv i admin. */
+export type CancellationRequest = {
+  requestedAt: string;
+  /** Valgfri melding fra gjesten (maks CANCELLATION_MESSAGE_MAX tegn). */
+  message: string;
+};
+
 export type Booking = {
   id: string;
   createdAt: string; // ISO timestamp
@@ -115,6 +122,9 @@ export type Booking = {
   /** Alle tilbakeføringer, eldste først. Se lib/refunds.ts for hvor mye som gjenstår å refundere. */
   refunds: Refund[];
   guestEmails: GuestEmails;
+  /** Ugjettbar nøkkel i gjestens «Min booking»-lenke (/booking/<token>). null på eldre bookinger til den lages, og etter anonymisering. */
+  guestToken: string | null;
+  cancellationRequest: CancellationRequest | null;
 
   /** TERMS_VERSION gjesten krysset av for på /book – null på bookinger fra før vilkårene fantes. */
   termsVersion: string | null;

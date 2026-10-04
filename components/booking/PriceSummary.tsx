@@ -1,4 +1,4 @@
-import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras, type Prices } from "@/lib/pricing";
+import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras, type Prices, type Quote } from "@/lib/pricing";
 
 type Props = {
   prices: Prices;
@@ -18,16 +18,12 @@ export default function PriceSummary({ prices, checkIn, checkOut, extras = DEFAU
     );
   }
 
-  const {
-    nights,
-    nightlyRate,
-    nightsTotal,
-    cleaningFee,
-    evChargerTotal,
-    petTotal,
-    beddingTotal,
-    total,
-  } = quote(prices, checkIn, checkOut, extras);
+  return <PriceBreakdown quote={quote(prices, checkIn, checkOut, extras)} />;
+}
+
+/** Prisoppsettet for et ferdig utregnet tilbud – også brukt på gjestens «Min booking»-side med den låste prisen. */
+export function PriceBreakdown({ quote }: { quote: Quote }) {
+  const { nights, nightlyRate, nightsTotal, cleaningFee, evChargerTotal, petTotal, beddingTotal, total, extras } = quote;
 
   return (
     <div className="rounded-2xl bg-surface p-6 ring-1 ring-line">

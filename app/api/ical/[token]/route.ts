@@ -1,17 +1,10 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getAccount } from "@/lib/admin-account";
 import { listBlockedRanges, listForAdmin } from "@/lib/bookings";
 import { bookingsAndBlocksToIcsEvents, generateIcs } from "@/lib/ical";
+import { tokensMatch } from "@/lib/tokens";
 
 export const dynamic = "force-dynamic";
-
-function tokensMatch(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
 
 /**
  * Offentlig, ubeskyttet av innlogging – sikret av at token er ugjettbar

@@ -68,6 +68,25 @@ Admin kan ikke bekrefte en forespørsel som overlapper en allerede bekreftet
 booking eller en blokkert periode. Det gir en feilmelding i stedet for
 dobbeltbooking.
 
+### Gjestens bookingside («Min booking»)
+
+Gjestene har ingen konto. Hver booking får i stedet en hemmelig lenke,
+`/booking/<token>`, som vises etter innsendt forespørsel og står i begge
+gjeste-e-postene. Der ser gjesten status, datoer, pris, betaling, depositum,
+tilleggsbeløp, refusjoner og fristen for gratis avbestilling. Bare fornavnet
+vises av personopplysningene, og siden indekseres ikke av søkemotorer.
+
+Gjesten kan:
+- **sikre eller bytte kort** (ny Stripe-lenke hver gang, så lenken i e-posten
+  som utløper etter et døgn er ikke et problem). Ikke mulig etter at
+  hovedbeløpet er betalt.
+- **be om avbestilling**, med en valgfri melding. Det avbestiller ikke noe: du
+  får e-post, bookingen får et gult merke i admin, og du avbestiller selv med
+  knappene over.
+
+«Kopier gjestelenke» i admin gir lenken for en booking, og lager den for
+eldre bookinger som mangler. Lenken slettes når bookingen anonymiseres.
+
 ### Sikkerhetskopi
 
 Bookinger, blokkeringer, priser og kontoinnstillinger finnes bare i databasen.
@@ -96,6 +115,8 @@ beholdes.
   API-et med 429.
 - Bookingskjemaet: maks 5 forespørsler per IP per time, pluss et skjult
   honeypot-felt som stopper enkle bots uten at noe lagres.
+- «Min booking»: maks 20 ukjente lenker per IP per 15 minutter (stopper
+  gjetting), og maks 10 handlinger (kortlenke, avbestilling) per IP per time.
 
 Tellerne ligger i samme lager som bookingene (Redis i produksjon, i minnet
 lokalt). Grensene settes i [lib/rate-limit.ts](lib/rate-limit.ts).

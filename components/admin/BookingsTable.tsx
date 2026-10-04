@@ -33,6 +33,25 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
   const [bookings, setBookings] = useState(initialBookings);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  /** Henter (og ved behov oppretter) gjestens «Min booking»-lenke og kopierer den. */
+  async function copyGuestLink(b: Booking) {
+    setError(null);
+    try {
+      const res = await fetch(`/api/bookings/${b.id}/guest-link`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Kunne ikke hente gjestelenken.");
+        return;
+      }
+      await navigator.clipboard.writeText(data.url);
+      setCopiedId(b.id);
+      setTimeout(() => setCopiedId((current) => (current === b.id ? null : current)), 2000);
+    } catch {
+      setError("Kunne ikke kopiere gjestelenken.");
+    }
+  }
 
   async function updateStatus(id: string, status: "confirmed" | "declined", refund?: "policy" | "full") {
     setBusyId(id);
@@ -110,6 +129,12 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                 {b.mainCharge.refundedAmount !== null && (
                   <p className="text-sm text-muted">Refundert {formatEur(b.mainCharge.refundedAmount)}</p>
                 )}
+                {b.cancellationRequest && b.status !== "declined" && (
+                  <p className="mt-2 rounded-lg bg-yellow-100 px-3 py-2 text-sm text-yellow-800">
+                    Gjesten ba om avbestilling {b.cancellationRequest.requestedAt.slice(0, 10)}
+                    {b.cancellationRequest.message && <>: «{b.cancellationRequest.message}»</>}
+                  </p>
+                )}
               </div>
 
               <div className="flex shrink-0 flex-wrap gap-2">
@@ -142,6 +167,11 @@ export default function BookingsTable({ initialBookings }: { initialBookings: Bo
                 )}
                 {b.status === "confirmed" && b.mainCharge.status === "paid" && (
                   <CancelPaidButtons booking={b} busy={busyId === b.id} onCancel={(refund) => updateStatus(b.id, "declined", refund)} />
+                )}
+                {!b.anonymizedAt && (
+                  <ActionButton onClick={() => copyGuestLink(b)} disabled={busyId === b.id}>
+                    {copiedId === b.id ? "Kopiert!" : "Kopier gjestelenke"}
+                  </ActionButton>
                 )}
                 <ActionButton onClick={() => remove(b.id)} disabled={busyId === b.id} variant="danger">
                   Slett
