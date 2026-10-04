@@ -48,11 +48,8 @@ export default async function GuestBookingPage(props: PageProps<"/booking/[token
       <Navbar />
       <main className="flex-1">
         <section className="mx-auto max-w-3xl px-6 py-20 sm:px-10 sm:py-28">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-accent">Din booking</p>
-          <h1 className="mt-4 font-display text-4xl leading-tight text-brand sm:text-5xl">
-            Hei, {booking.name.split(" ")[0]}
-          </h1>
-          <span className={`mt-5 inline-block rounded-full px-3 py-1 text-sm font-semibold ${statusStyle(booking)}`}>
+          <h1 className="text-sm font-semibold uppercase tracking-[0.3em] text-accent">Din booking</h1>
+          <span className={`mt-4 inline-block rounded-full px-3 py-1 text-sm font-semibold ${statusStyle(booking)}`}>
             {guestStatusLabel(booking)}
           </span>
 
