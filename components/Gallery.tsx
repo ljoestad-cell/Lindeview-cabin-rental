@@ -51,7 +51,7 @@ const photos = [
     className: "sm:row-span-2",
   },
   {
-    src: "/images/galleri/east-view-no-sheep.png",
+    src: "/images/galleri/east-view-no-sheep.jpeg",
     alt: "Svaberg og utsiktspunkt i terrenget rundt Lindeview",
     className: "",
   },
