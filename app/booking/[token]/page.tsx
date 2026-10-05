@@ -7,10 +7,17 @@ import Footer from "@/components/Footer";
 import GuestBookingActions from "@/components/booking/GuestBookingActions";
 import { PriceBreakdown } from "@/components/booking/PriceSummary";
 import { getBookingByGuestToken } from "@/lib/bookings";
-import { DEPOSIT_HOLD_DAYS } from "@/lib/config";
+import { CHARGE_DAYS_BEFORE_CHECKIN, DEPOSIT_HOLD_DAYS, EARLY_CANCELLATION_FEE } from "@/lib/config";
 import { formatDateLong, today } from "@/lib/dates";
-import { canRequestCancellation, canUpdateCard, freeCancellationDeadline, guestStatusLabel } from "@/lib/guest";
-import { formatEur } from "@/lib/pricing";
+import {
+  canPayRest,
+  canRequestCancellation,
+  canUpdateCard,
+  freeCancellationDeadline,
+  guestStatusLabel,
+} from "@/lib/guest";
+import { formatEur, prepaymentAmount } from "@/lib/pricing";
+import { chargedAmount, rentalRefunded } from "@/lib/refunds";
 import { CONTACT_EMAIL, OWNER_PHONE_DISPLAY, OWNER_PHONE_TEL, PROPERTY_NAME } from "@/lib/property";
 import { isBlocked, recordFailure } from "@/lib/rate-limit";
 import { cancelledByGuest } from "@/lib/status";
@@ -86,8 +93,9 @@ export default async function GuestBookingPage(props: PageProps<"/booking/[token
                   </>
                 ) : now <= deadline ? (
                   <p>
-                    Gratis avbestilling til og med <span className="font-medium text-foreground">{formatDateLong(deadline)}</span>.
-                    Etter det refunderes ikke leien.
+                    Avbestiller du til og med <span className="font-medium text-foreground">{formatDateLong(deadline)}</span>,
+                    får du tilbake det du har betalt, minus et gebyr på {formatEur(EARLY_CANCELLATION_FEE)}. Etter det
+                    refunderes ikke leien.
                   </p>
                 ) : (
                   <p>Fristen for gratis avbestilling ({formatDateLong(deadline)}) er passert.</p>
@@ -106,6 +114,7 @@ export default async function GuestBookingPage(props: PageProps<"/booking/[token
               token={token}
               canUpdateCard={canUpdateCard(booking)}
               cardSaved={booking.mainCharge.status !== "not_saved"}
+              canPayRest={canPayRest(booking)}
               canRequestCancellation={canRequestCancellation(booking, now)}
               cancellationRequestedAt={booking.cancellationRequest?.requestedAt ?? null}
             />
@@ -132,17 +141,20 @@ export default async function GuestBookingPage(props: PageProps<"/booking/[token
 function statusStyle(booking: Booking): string {
   if (booking.status === "declined") return "bg-red-100 text-red-800";
   if (booking.status === "pending" || booking.mainCharge.status === "not_saved") return "bg-yellow-100 text-yellow-800";
+  if (booking.mainCharge.status === "failed") return "bg-orange-100 text-orange-800";
   return "bg-emerald-100 text-emerald-800";
 }
 
 function PaymentStatus({ booking }: { booking: Booking }) {
-  const { mainCharge, deposit, pricing } = booking;
+  const { prepayment, mainCharge, deposit, pricing } = booking;
+  const rest = mainCharge.amount ?? pricing.total;
   const extras = booking.extraCharges.filter((c) => c.status === "succeeded");
 
   if (booking.status === "pending") {
     return (
       <p className="text-sm text-muted">
-        Ingenting er belastet. Når vi har godkjent forespørselen, får du en e-post med lenke for å sikre et betalingskort.
+        Ingenting er belastet. Når vi har godkjent forespørselen, får du en e-post med lenke for å betale forskuddet og
+        sikre et betalingskort.
       </p>
     );
   }
@@ -150,20 +162,30 @@ function PaymentStatus({ booking }: { booking: Booking }) {
   return (
     <div className="space-y-3 text-sm text-muted">
       {mainCharge.status === "not_saved" && booking.status === "confirmed" && (
-        <p>Sikre et betalingskort for å fullføre bookingen. Ingenting trekkes nå.</p>
+        <PrepaymentDue booking={booking} />
+      )}
+      {prepayment.status === "paid" && (
+        <p className="text-emerald-700">
+          {mainCharge.status === "paid" && chargedAmount(booking, "main") === 0 ? "Betalt" : "Forskudd betalt"}{" "}
+          {formatEur(prepayment.amount)}
+          {prepayment.paidAt && ` ${formatDateLong(prepayment.paidAt.slice(0, 10))}`}.
+        </p>
       )}
       {mainCharge.status === "card_saved" && (
         <p>
-          Kortet er sikret. {formatEur(pricing.total)} trekkes automatisk{" "}
+          Kortet er sikret. {prepayment.status === "paid" ? "Resten" : "Leien"} på {formatEur(rest)} trekkes automatisk{" "}
           {mainCharge.chargeAt ? formatDateLong(mainCharge.chargeAt) : "før innsjekk"}.
         </p>
       )}
       {mainCharge.status === "failed" && (
-        <p className="text-red-700">Betalingen gikk ikke gjennom. Oppdater kortet nedenfor, så prøver vi igjen.</p>
+        <p className="text-red-700">
+          Trekket av {formatEur(rest)} gikk ikke gjennom. Betal beløpet nedenfor – banken din kan be deg godkjenne
+          betalingen.
+        </p>
       )}
-      {mainCharge.status === "paid" && (
+      {mainCharge.status === "paid" && chargedAmount(booking, "main") > 0 && (
         <p className="text-emerald-700">
-          Betalt {formatEur(pricing.total)}
+          {prepayment.status === "paid" ? "Resten betalt" : "Betalt"} {formatEur(chargedAmount(booking, "main"))}
           {mainCharge.paidAt && ` ${formatDateLong(mainCharge.paidAt.slice(0, 10))}`}.
         </p>
       )}
@@ -200,10 +222,23 @@ function PaymentStatus({ booking }: { booking: Booking }) {
           ))}
         </ul>
       ) : (
-        mainCharge.refundedAmount !== null &&
-        mainCharge.refundedAmount > 0 && <p className="text-emerald-700">Refundert {formatEur(mainCharge.refundedAmount)}.</p>
+        rentalRefunded(booking) > 0 && <p className="text-emerald-700">Refundert {formatEur(rentalRefunded(booking))}.</p>
       )}
     </div>
+  );
+}
+
+/** Bekreftet, men forskuddet er ikke betalt ennå – hva som betales nå og senere. */
+function PrepaymentDue({ booking }: { booking: Booking }) {
+  const prepay = prepaymentAmount(booking.pricing.total, booking.checkIn, today());
+  if (prepay >= booking.pricing.total) {
+    return <p>Betal leien på {formatEur(prepay)} for å fullføre bookingen.</p>;
+  }
+  return (
+    <p>
+      Betal forskuddet på {formatEur(prepay)} for å fullføre bookingen. Resten på{" "}
+      {formatEur(booking.pricing.total - prepay)} trekkes automatisk fra samme kort {CHARGE_DAYS_BEFORE_CHECKIN} dager før innsjekk.
+    </p>
   );
 }
 

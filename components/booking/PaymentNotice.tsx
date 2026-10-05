@@ -1,5 +1,5 @@
 import { Lock } from "lucide-react";
-import { CHARGE_DAYS_BEFORE_CHECKIN } from "@/lib/config";
+import { CHARGE_DAYS_BEFORE_CHECKIN, PREPAYMENT_SHARE } from "@/lib/config";
 import { formatEur } from "@/lib/pricing";
 
 export default function PaymentNotice({ deposit }: { deposit: number }) {
@@ -8,10 +8,11 @@ export default function PaymentNotice({ deposit }: { deposit: number }) {
       <p className="font-medium text-foreground">Betaling</p>
       <p className="mt-1">
         Du betaler ingenting nå. Når forespørselen din er bekreftet, får du en
-        sikker lenke for å registrere en betalingsmetode. Hovedbeløpet
-        trekkes automatisk {CHARGE_DAYS_BEFORE_CHECKIN} dager før innsjekk. I
-        tillegg reserveres et depositum på {formatEur(deposit)} ved
-        utsjekk, og frigis normalt innen noen dager hvis alt er i orden.
+        sikker lenke der du betaler {Math.round(PREPAYMENT_SHARE * 100)} % av
+        leien i forskudd og registrerer kortet. Resten trekkes automatisk{" "}
+        {CHARGE_DAYS_BEFORE_CHECKIN} dager før innsjekk. I tillegg reserveres
+        et depositum på {formatEur(deposit)} ved utsjekk, og frigis normalt
+        innen noen dager hvis alt er i orden.
       </p>
       <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-muted">
         <Lock className="h-3.5 w-3.5" strokeWidth={2} />

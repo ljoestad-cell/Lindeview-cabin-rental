@@ -6,10 +6,28 @@ import { DEPOSIT_HOLD_DAYS } from "@/lib/config";
 import { PROPERTY_NAME } from "@/lib/property";
 
 export const metadata: Metadata = {
-  title: `Kortet er sikret | ${PROPERTY_NAME}`,
+  title: `Betaling mottatt | ${PROPERTY_NAME}`,
 };
 
-export default function SecuredPage() {
+/** Hva Stripe sender gjesten tilbake etter – se CheckoutKind i lib/payments.ts. */
+const CONTENT = {
+  prepayment: {
+    heading: "Bookingen er sikret",
+    body: "Takk! Betalingen er mottatt og kortet ditt er registrert. Er det mer enn noen uker til innsjekk, trekkes resten av leien automatisk fra samme kort nærmere innsjekk",
+  },
+  rest: {
+    heading: "Betaling mottatt",
+    body: "Takk! Resten av leien er betalt, og bookingen er fullt betalt",
+  },
+  card: {
+    heading: "Kortet er byttet",
+    body: "Takk! Det nye kortet er registrert og brukes til de neste betalingene. Du blir ikke belastet nå",
+  },
+} as const;
+
+export default async function SecuredPage(props: PageProps<"/book/sikret">) {
+  const { kind } = await props.searchParams;
+  const content = CONTENT[kind === "rest" || kind === "card" ? kind : "prepayment"];
   return (
     <>
       <Navbar />
@@ -19,14 +37,12 @@ export default function SecuredPage() {
             Booking
           </p>
           <h1 className="mt-4 font-display text-4xl leading-tight text-brand sm:text-5xl">
-            Kortet er sikret
+            {content.heading}
           </h1>
           <p className="mt-6 text-lg leading-relaxed text-muted">
-            Takk! Betalingsmetoden din er registrert. Du blir ikke belastet nå
-            — hovedbeløpet trekkes automatisk nærmere innsjekk, og et
-            depositum reserveres dagen før utsjekk og frigis normalt innen{" "}
-            {DEPOSIT_HOLD_DAYS} dager etter utsjekk hvis alt er i orden. Du hører fra oss hvis noe skulle kreve
-            oppfølging.
+            {content.body}. Et depositum reserveres dagen før utsjekk og frigis normalt innen{" "}
+            {DEPOSIT_HOLD_DAYS} dager etter utsjekk hvis alt er i orden. Du får en bekreftelse på e-post, og hører fra
+            oss hvis noe skulle kreve oppfølging.
           </p>
           <Link
             href="/"

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { policyRefundAmount } from "@/lib/cancellation";
+import { policyRefundTotal } from "@/lib/cancellation";
+import { rentalPaid } from "@/lib/refunds";
 import { DECLINE_REASON_MAX } from "@/lib/config";
 import { today } from "@/lib/dates";
 import { formatEur, type BookingExtras } from "@/lib/pricing";
@@ -177,12 +178,12 @@ export default function BookingsTable({
                     </ActionButton>
                   </>
                 )}
-                {b.status === "confirmed" && b.mainCharge.status !== "paid" && (
+                {b.status === "confirmed" && rentalPaid(b) === 0 && (
                   <ActionButton onClick={() => setPendingCancel({ id: b.id })} disabled={busyId === b.id}>
                     Avbestill
                   </ActionButton>
                 )}
-                {b.status === "confirmed" && b.mainCharge.status === "paid" && (
+                {b.status === "confirmed" && rentalPaid(b) > 0 && (
                   <CancelPaidButtons
                     booking={b}
                     busy={busyId === b.id}
@@ -239,7 +240,7 @@ function CancelPaidButtons({
   busy: boolean;
   onCancel: (refund: "policy" | "full") => void;
 }) {
-  const policyAmount = policyRefundAmount(booking.pricing.total, booking.checkIn, today());
+  const policyAmount = policyRefundTotal(booking, today());
   return (
     <>
       <ActionButton onClick={() => onCancel("policy")} disabled={busy}>
@@ -283,9 +284,9 @@ function CancelConfirm({
   const summary = isRequest
     ? "Avslå forespørselen? Ingenting er belastet."
     : refund === "policy"
-      ? `Gjesten avbestiller. ${formatEur(policyRefundAmount(booking.pricing.total, booking.checkIn, today()))} refunderes etter leievilkårene.`
+      ? `Gjesten avbestiller. ${formatEur(policyRefundTotal(booking, today()))} av ${formatEur(rentalPaid(booking))} betalt refunderes etter leievilkårene.`
       : refund === "full"
-        ? `Vi avlyser. Hele beløpet (${formatEur(booking.pricing.total)}) refunderes.`
+        ? `Vi avlyser. Alt som er betalt (${formatEur(rentalPaid(booking))}) refunderes.`
         : booking.cancellationRequest
           ? "Avbestille bookingen slik gjesten ba om? Ingenting er trukket ennå."
           : "Avbestille bookingen? Ingenting er trukket ennå.";

@@ -57,10 +57,10 @@ automatisk i vilkårene:
 
 | Når gjesten avbestiller | Refusjon |
 |---|---|
-| Minst 30 dager før innsjekk | Alt (normalt er ingenting trukket ennå) |
+| Minst 30 dager før innsjekk | Det som er betalt, minus 50 € i gebyr (trekkes fra forskuddet, `EARLY_CANCELLATION_FEE`) |
 | Mindre enn 30 dager før | Ingenting |
 
-For en betalt booking har admin to knapper. **«Gjesten avbestiller»**
+For en booking der noe er betalt (også bare forskuddet) har admin to knapper. **«Gjesten avbestiller»**
 refunderer etter tabellen over, og beløpet står på knappen. **«Vi avlyser»**
 refunderer alt. Det som er refundert, vises på bookingen. Begge (og
 «Avbestill» på ubetalte bookinger) åpner en bekreftelse der du velger om
@@ -79,9 +79,11 @@ tilleggsbeløp, refusjoner og fristen for gratis avbestilling. Bare fornavnet
 vises av personopplysningene, og siden indekseres ikke av søkemotorer.
 
 Gjesten kan:
-- **sikre eller bytte kort** (ny Stripe-lenke hver gang, så lenken i e-posten
-  som utløper etter et døgn er ikke et problem). Ikke mulig etter at
-  hovedbeløpet er betalt.
+- **betale forskuddet og sikre kortet, eller bytte kort** (ny Stripe-lenke hver
+  gang, så lenken i e-posten som utløper etter et døgn er ikke et problem).
+  Ikke mulig etter at resten er trukket.
+- **betale resten selv** («Betal resten», med 3D Secure) hvis det automatiske
+  trekket feilet.
 - **be om avbestilling**, med en valgfri melding. Det avbestiller ikke noe: du
   får e-post, bookingen får et gult merke i admin, og du avbestiller selv med
   knappene over.
@@ -244,13 +246,16 @@ sende e-post:
 **Til gjesten (på engelsk):**
 
 1. *Booking approved* — sendes automatisk når du bekrefter en booking i
-   `/admin`: datoer, prisoversikt, lenke for å sikre kortet (gyldig 24 t),
-   når beløpet trekkes, depositum, og at endelig bekreftelse kommer når
-   betalingen er verifisert.
-2. *Booking confirmed* — sendes automatisk (én gang) når gjesten har sikret
-   kortet via Stripe: kort registrert, booking bekreftet, og når beløpet
-   trekkes — eller at det er trukket, ved sen booking. Sendes ikke hvis en
-   umiddelbar belastning feiler (da varsles eieren i stedet).
+   `/admin`: datoer, prisoversikt, lenke for å betale forskuddet og sikre
+   kortet (gyldig 24 t), hvor mye som trekkes når, depositum, og at endelig
+   bekreftelse kommer når betalingen er mottatt.
+2. *Booking confirmed* — sendes automatisk (én gang) når gjesten har betalt
+   forskuddet via Stripe: forskudd mottatt, og når resten trekkes — eller at
+   alt er betalt, ved sen booking.
+2b. *Payment needed* — sendes automatisk når det automatiske trekket av
+   resten feiler. Gjesten bes betale resten selv fra «Min booking». Du får
+   samtidig e-post om betalingsfeilen, og bestemmer selv om bookingen skal
+   avbestilles hvis ingenting skjer. Du får e-post når resten er betalt.
 3. *Booking cancelled* — når du avbestiller en **bekreftet** booking, og
    *Booking request not confirmed* — når du **avslår en ny forespørsel**. Før
    du bekrefter, vises en avkrysning «Send e-post til gjesten» (på som
@@ -310,13 +315,20 @@ Bookinger fungerer helt uten dette — sett opp når dere er klare:
 
 Alle priser er i **EUR**, og settes under «Priser» i admin. Betalingsflyten:
 
-1. Du bekrefter en booking i `/admin` → en secure-card-lenke lages automatisk
-   (Stripe Checkout, "sikre kort"-modus — ingen belastning). Lenken **sendes på
-   e-post** til gjesten (se Resend-seksjonen over), og vises i admin.
-2. Gjesten fyller inn kortet sitt. Ingenting belastes ennå.
-3. **Hovedbeløpet** (leie + utvask) trekkes automatisk 29 dager før innsjekk (dagen etter at fristen for gratis
-   avbestilling er ute)
-   — eller med en gang, hvis bookingen ble bekreftet senere enn det.
+1. Du bekrefter en booking i `/admin` → en betalingslenke lages automatisk
+   (Stripe Checkout). Lenken **sendes på e-post** til gjesten (se
+   Resend-seksjonen over), og vises i admin.
+2. Gjesten betaler **forskuddet, 25 % av leien** (`PREPAYMENT_SHARE`), og
+   kortet lagres samtidig. Checkout ber alltid om **3D Secure** (BankID/
+   bank-app), så banken og ikke du tar tapet hvis kortet var stjålet. 3D
+   Secure er inkludert i Stripes standardpris. Ved sen bestilling (under 29
+   dager til innsjekk) betales hele leien her.
+3. **Resten** (75 %) trekkes automatisk 29 dager før innsjekk (dagen etter at
+   fristen for gratis avbestilling er ute) fra det lagrede kortet. Feiler
+   trekket (kortet avvist, eller banken krever ny godkjenning), settes
+   betalingen til «feilet», du får e-post, og gjesten får e-post med lenke
+   til å betale resten selv. Bookingen avbestilles ikke automatisk.
+   Bookinger fra før forskudd fantes, trekker hele leien som før.
 4. **Depositum** (standard 1000 EUR, beløpet låses på bookingen) reserveres automatisk på kortet **dagen
    før utsjekk** (ikke før innsjekk — et korthold varer bare ca. 7 dager
    hos de fleste banker, så det holdes til rett etter oppholdet i stedet for
@@ -328,7 +340,7 @@ Alle priser er i **EUR**, og settes under «Priser» i admin. Betalingsflyten:
    før noe er reservert, hoppes den automatiske reservasjonen over.
 5. **Tilleggsbeløp** (skade, ekstra rengjøring) kan trekkes når som helst fra
    samme lagrede kort, også i `/admin`.
-6. **Refusjon**: er noe trukket ved en feil, har hovedbeløpet, et trukket
+6. **Refusjon**: er noe trukket ved en feil, har forskuddet, resten, et trukket
    depositum og hvert tilleggsbeløp en «Refunder»-knapp i `/admin`. Velg
    beløp (helt eller delvis, flere ganger opp til det som er trukket) og skriv
    en begrunnelse (maks 200 tegn). Refusjonen vises under belastningen, telles
@@ -358,8 +370,10 @@ på nytt).
      `openssl rand -hex 32`); Vercel sender den automatisk til cron-jobben.
 5. Redeploy.
 6. **Test** i testmodus med testkort `4242 4242 4242 4242`, hvilken som helst
-   fremtidig utløpsdato og CVC — hele flyten (sikre kort → belastning →
-   depositum → tilleggsbeløp) kan kjøres uten ekte penger. Bytt til
+   fremtidig utløpsdato og CVC — hele flyten (forskudd → belastning av resten →
+   depositum → tilleggsbeløp) kan kjøres uten ekte penger. `4000 0027 6000 3184`
+   krever 3D Secure hver gang, og lar deg teste et feilet trekk av resten og
+   «Betal resten». Bytt til
    live-nøkler (`sk_live_...`) og et nytt live-webhook-endepunkt når dere er
    klare for skarpe betalinger.
 

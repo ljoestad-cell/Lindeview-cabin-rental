@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildApprovalEmail,
   buildCancellationEmail,
+  buildPaymentFailedEmail,
   buildDeclinedRequestEmail,
   buildConfirmationEmail,
   notifyGuestOfApproval,
@@ -43,23 +44,27 @@ function makeBooking(overrides: Partial<Booking> = {}): Booking {
 }
 
 describe("buildApprovalEmail", () => {
-  it("inneholder betalingslenke, prislinjer og forfallsdato 29 dager før innsjekk", () => {
+  it("inneholder betalingslenke, prislinjer, forskudd og forfallsdato 29 dager før innsjekk", () => {
     const { subject, text, html } = buildApprovalEmail(makeBooking(), "2027-01-15");
     expect(subject).toContain("Booking approved");
-    expect(text).toContain("Secure your card: https://checkout.stripe.com/c/pay/test_123");
+    expect(text).toContain("Pay and secure your booking: https://checkout.stripe.com/c/pay/test_123");
+    expect(text).toContain("prepayment of €637.50 (25%) now");
+    expect(text).toContain("remaining €1,912.50 will be charged automatically");
+    expect(text).toContain("3D Secure");
     expect(text).toContain("7 nights × €320.00: €2,240.00");
     expect(text).toContain("EV charging (1): €60.00");
     expect(text).not.toContain("Pets");
     expect(text).toContain("Total: €2,550.00");
-    expect(text).toContain("charged automatically on Fri, 11 June 2027");
-    expect(text).toContain("final confirmation as soon as your payment method has been verified");
+    expect(text).toContain("charged automatically to the same card on Fri, 11 June 2027");
+    expect(text).toContain("final confirmation as soon as your payment has been received");
     expect(text).toContain("€1,000.00");
     expect(html).toContain('href="https://checkout.stripe.com/c/pay/test_123"');
   });
 
-  it("sier at beløpet trekkes straks ved sen booking", () => {
+  it("sier at hele beløpet betales straks ved sen booking", () => {
     const { text } = buildApprovalEmail(makeBooking(), "2027-07-01");
-    expect(text).toContain("will be charged as soon as your card is secured");
+    expect(text).toContain("the total of €2,550.00 is paid when you secure your booking");
+    expect(text).not.toContain("prepayment");
   });
 
   it("escaper HTML i gjestens navn", () => {
@@ -76,6 +81,16 @@ describe("buildConfirmationEmail", () => {
     expect(subject).toContain("Booking confirmed");
     expect(text).toContain("Your card has been registered");
     expect(text).toContain("charged automatically on Fri, 11 June 2027");
+  });
+
+  it("bekrefter forskuddet og oppgir resten og datoen", () => {
+    const booking = makeBooking({
+      prepayment: { status: "paid", amount: 637.5, paymentIntentId: "pi_pre", paidAt: "2027-01-15T10:00:00Z" },
+      mainCharge: { status: "card_saved", amount: 1912.5, chargeAt: "2027-06-11" } as Booking["mainCharge"],
+    });
+    const { text } = buildConfirmationEmail(booking);
+    expect(text).toContain("received your prepayment of €637.50");
+    expect(text).toContain("remaining €1,912.50 will be charged automatically to the same card on Fri, 11 June 2027");
   });
 
   it("bekrefter mottatt betaling når beløpet allerede er trukket", () => {
@@ -116,7 +131,32 @@ describe("buildCancellationEmail", () => {
     expect(buildCancellationEmail(byOwner(paid(2550))).text).toContain("We have refunded €2,550.00 to your card");
     const partial = buildCancellationEmail(byGuest(paid(1000))).text;
     expect(partial).toContain("We have refunded €1,000.00");
-    expect(partial).toContain("remainder of your payment of €2,550.00 is non-refundable");
+    expect(partial).toContain("remaining €1,550.00 of your payment of €2,550.00 is non-refundable");
+  });
+
+  it("holder tilbake gebyret av forskuddet ved tidlig avbestilling", () => {
+    const text = buildCancellationEmail(
+      byGuest({
+        prepayment: { status: "paid", amount: 637.5, paymentIntentId: "pi_pre", paidAt: null },
+        mainCharge: { status: "card_saved", amount: 1912.5, refundedAmount: 587.5 } as Booking["mainCharge"],
+        refunds: [
+          { id: "r1", target: "prepayment", extraChargeId: null, amount: 587.5, reason: "", createdAt: "", stripeRefundId: null },
+        ],
+      }),
+    ).text;
+    expect(text).toContain("We have refunded €587.50");
+    expect(text).toContain("remaining €50.00 of your payment of €637.50 is non-refundable");
+    expect(text).toContain("No further payments will be taken.");
+  });
+
+  it("sier at forskuddet ikke refunderes ved sen avbestilling", () => {
+    const text = buildCancellationEmail(
+      byGuest({
+        prepayment: { status: "paid", amount: 637.5, paymentIntentId: "pi_pre", paidAt: null },
+        mainCharge: { status: "failed", amount: 1912.5, refundedAmount: 0 } as Booking["mainCharge"],
+      }),
+    ).text;
+    expect(text).toContain("your prepayment of €637.50 is non-refundable");
   });
 
   it("forklarer vilkårene når ingenting refunderes, og lover ikke refusjon som feilet", () => {
@@ -256,5 +296,19 @@ describe("sending til gjesten", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("nope", { status: 403 })));
 
     await expect(notifyGuestOfConfirmation(makeBooking())).rejects.toThrow("Resend svarte 403");
+  });
+});
+
+describe("buildPaymentFailedEmail", () => {
+  it("ber gjesten betale resten via sin bookingside", () => {
+    const booking = makeBooking({
+      guestToken: "tok123",
+      mainCharge: { status: "failed", amount: 1912.5 } as Booking["mainCharge"],
+    });
+    const { subject, text, html } = buildPaymentFailedEmail(booking);
+    expect(subject).toContain("Payment needed");
+    expect(text).toContain("remaining €1,912.50");
+    expect(text).toMatch(/Pay the remaining amount: .*\/booking\/tok123/);
+    expect(html).toContain("/booking/tok123");
   });
 });

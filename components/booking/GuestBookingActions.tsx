@@ -8,8 +8,10 @@ import { formatDateLong } from "@/lib/dates";
 type Props = {
   token: string;
   canUpdateCard: boolean;
-  /** Om gjesten allerede har sikret et kort – styrer «Sikre kort» vs. «Bytt kort». */
+  /** Om gjesten allerede har sikret et kort – styrer «Betal forskudd» vs. «Bytt kort». */
   cardSaved: boolean;
+  /** Trekket av resten feilet – gjesten betaler den selv. */
+  canPayRest: boolean;
   canRequestCancellation: boolean;
   cancellationRequestedAt: string | null;
 };
@@ -25,27 +27,28 @@ async function post(url: string, body?: object): Promise<Record<string, unknown>
   return data;
 }
 
-/** Knappene på «Min booking»: sikre/bytte kort og be om avbestilling. Serveren sjekker de samme reglene (lib/guest.ts). */
+/** Knappene på «Min booking»: betale forskudd/bytte kort, betale resten og be om avbestilling. Serveren sjekker de samme reglene (lib/guest.ts). */
 export default function GuestBookingActions({
   token,
   canUpdateCard,
   cardSaved,
+  canPayRest,
   canRequestCancellation,
   cancellationRequestedAt,
 }: Props) {
   const router = useRouter();
-  const [busy, setBusy] = useState<"card" | "cancel" | null>(null);
+  const [busy, setBusy] = useState<"card" | "rest" | "cancel" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [message, setMessage] = useState("");
 
   const base = `/api/guest/${encodeURIComponent(token)}`;
 
-  async function openCardPage() {
-    setBusy("card");
+  async function openPaymentPage(kind: "card" | "rest") {
+    setBusy(kind);
     setError(null);
     try {
-      const { url } = await post(`${base}/card`);
+      const { url } = await post(`${base}/${kind === "card" ? "card" : "rest-payment"}`);
       window.location.href = url as string;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Noe gikk galt.");
@@ -67,7 +70,7 @@ export default function GuestBookingActions({
     }
   }
 
-  if (!canUpdateCard && !canRequestCancellation && !cancellationRequestedAt) return null;
+  if (!canUpdateCard && !canPayRest && !canRequestCancellation && !cancellationRequestedAt) return null;
 
   return (
     <div className="space-y-4">
@@ -76,11 +79,22 @@ export default function GuestBookingActions({
       {canUpdateCard && (
         <button
           type="button"
-          onClick={openCardPage}
+          onClick={() => openPaymentPage("card")}
           disabled={busy !== null}
           className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60"
         >
-          {busy === "card" ? "Åpner betalingssiden …" : cardSaved ? "Bytt kort" : "Sikre kort"}
+          {busy === "card" ? "Åpner betalingssiden …" : cardSaved ? "Bytt kort" : "Betal og sikre bookingen"}
+        </button>
+      )}
+
+      {canPayRest && (
+        <button
+          type="button"
+          onClick={() => openPaymentPage("rest")}
+          disabled={busy !== null}
+          className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-60"
+        >
+          {busy === "rest" ? "Åpner betalingssiden …" : "Betal resten"}
         </button>
       )}
 

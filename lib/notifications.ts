@@ -1,6 +1,13 @@
-import { CHARGE_DAYS_BEFORE_CHECKIN, DEPOSIT_HOLD_DAYS, FULL_REFUND_DAYS } from "@/lib/config";
+import {
+  CHARGE_DAYS_BEFORE_CHECKIN,
+  DEPOSIT_HOLD_DAYS,
+  FULL_REFUND_DAYS,
+  PREPAYMENT_SHARE,
+} from "@/lib/config";
 import { addDays, fromIso, today } from "@/lib/dates";
+import { prepaymentAmount } from "@/lib/pricing";
 import { OWNER_EMAIL, OWNER_NAME, OWNER_PHONE_DISPLAY, PROPERTY_NAME } from "@/lib/property";
+import { rentalPaid, rentalRefunded } from "@/lib/refunds";
 import { guestBookingUrl, siteUrl } from "@/lib/site";
 import { cancelledByGuest } from "@/lib/status";
 import type { Booking } from "@/lib/types";
@@ -149,6 +156,16 @@ export async function notifyOwnerOfPaymentIssue(booking: Booking, message: strin
   await sendOwnerEmail(`Betaling feilet: ${booking.name} (${booking.checkIn})`, text, booking.email);
 }
 
+/** Gjesten har betalt resten selv etter et feilet automatisk trekk. Best-effort. */
+export async function notifyOwnerOfRestPaid(booking: Booking): Promise<void> {
+  const text = [
+    `${booking.name} har betalt resten av leien selv etter at det automatiske trekket feilet.`,
+    `${booking.checkIn} – ${booking.checkOut}. Bookingen er nå fullt betalt.`,
+  ].join("\n");
+
+  await sendOwnerEmail(`Resten er betalt: ${booking.name} (${booking.checkIn})`, text, booking.email);
+}
+
 /** Gjesten har bedt om avbestilling via «Min booking». Best-effort, samme mønster som de andre varslene. */
 export async function notifyOwnerOfCancellationRequest(booking: Booking): Promise<void> {
   const message = booking.cancellationRequest?.message;
@@ -293,15 +310,18 @@ function textTable(rows: [string, string][]): string[] {
   return rows.map(([label, value]) => `${label}: ${value}`);
 }
 
-/** E-post 1: eieren har godkjent – gjesten sikrer kortet via lenken. Ren funksjon, testbar uten nettverk. */
+/** E-post 1: eieren har godkjent – gjesten betaler forskuddet og sikrer kortet via lenken. Ren funksjon, testbar uten nettverk. */
 export function buildApprovalEmail(booking: Booking, now: string = today()): GuestEmail {
   const url = booking.secureCardUrl ?? "";
   const total = formatAmount(booking.pricing.total);
   const dueDate = addDays(booking.checkIn, -CHARGE_DAYS_BEFORE_CHECKIN);
+  const prepay = prepaymentAmount(booking.pricing.total, booking.checkIn, now);
   const chargeSentence =
-    dueDate <= now
-      ? `Since your stay is less than ${CHARGE_DAYS_BEFORE_CHECKIN} days away, the total of ${total} will be charged as soon as your card is secured.`
-      : `Nothing is charged now. The total of ${total} will be charged automatically on ${formatDate(dueDate)} (${CHARGE_DAYS_BEFORE_CHECKIN} days before check-in).`;
+    prepay >= booking.pricing.total
+      ? `Since your stay is less than ${CHARGE_DAYS_BEFORE_CHECKIN} days away, the total of ${total} is paid when you secure your booking.`
+      : `To secure your booking, you pay a prepayment of ${formatAmount(prepay)} (${Math.round(PREPAYMENT_SHARE * 100)}%) now. ` +
+        `The remaining ${formatAmount(booking.pricing.total - prepay)} will be charged automatically to the same card on ` +
+        `${formatDate(dueDate)} (${CHARGE_DAYS_BEFORE_CHECKIN} days before check-in).`;
   const termsUrl = `${siteUrl()}/vilkar`;
 
   const prices: [string, string][] = [...priceLines(booking), ["Total", total]];
@@ -310,14 +330,14 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
     ``,
     `Good news – your booking request for ${PROPERTY_NAME} has been approved.`,
     ``,
-    `To complete the booking, please secure your payment card using the link below. The link is valid for 24 hours – if it expires, just reply to this email and we will send you a new one.`,
+    `To complete the booking, please pay and secure your card using the link below. Your bank will ask you to approve the payment (3D Secure). The link is valid for 24 hours – if it expires, you can get a new one from your booking page, or just reply to this email.`,
   ];
   const plan = [
     `How payment works`,
     chargeSentence,
     depositSentence(booking),
     ``,
-    `You will receive a final confirmation as soon as your payment method has been verified.`,
+    `You will receive a final confirmation as soon as your payment has been received.`,
     ``,
     `Rental terms and cancellation policy: ${termsUrl}`,
   ];
@@ -325,7 +345,7 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
   const text = [
     ...intro,
     ``,
-    `Secure your card: ${url}`,
+    `Pay and secure your booking: ${url}`,
     ``,
     ...textTable(stayLines(booking)),
     ``,
@@ -340,7 +360,7 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
   const button =
     `<p style="margin:20px 0;"><a href="${escapeHtml(url)}" ` +
     `style="display:inline-block;background:#26362a;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;">` +
-    `Secure your card</a></p>`;
+    `Pay and secure your booking</a></p>`;
 
   const html = htmlDocument(
     htmlParagraphs(intro) +
@@ -349,7 +369,7 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
       htmlTable(prices, { boldLast: true, alignRight: true }) +
       `<p style="margin:16px 0 6px;font-weight:600;">How payment works</p>` +
       htmlParagraphs([chargeSentence, ``, depositSentence(booking), ``,
-        `You will receive a final confirmation as soon as your payment method has been verified.`]) +
+        `You will receive a final confirmation as soon as your payment has been received.`]) +
       `<p style="margin:0 0 12px;"><a href="${escapeHtml(termsUrl)}" style="color:#26362a;">Rental terms and cancellation policy</a></p>` +
       manageBookingLink(booking).html +
       htmlParagraphs(signatureLines()),
@@ -365,12 +385,15 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
 /** E-post 2: kortet er sikret og bookingen bekreftet. Ren funksjon, testbar uten nettverk. */
 export function buildConfirmationEmail(booking: Booking): GuestEmail {
   const total = formatAmount(booking.pricing.total);
+  const chargeDate = formatDate(booking.mainCharge.chargeAt ?? addDays(booking.checkIn, -CHARGE_DAYS_BEFORE_CHECKIN));
   const chargeSentence =
     booking.mainCharge.status === "paid"
       ? `Your payment of ${total} has been received – thank you.`
-      : `Your card has been registered. The total of ${total} will be charged automatically on ${formatDate(
-          booking.mainCharge.chargeAt ?? addDays(booking.checkIn, -CHARGE_DAYS_BEFORE_CHECKIN),
-        )}.`;
+      : booking.prepayment?.status === "paid"
+        ? `We have received your prepayment of ${formatAmount(booking.prepayment.amount)} – thank you. The remaining ` +
+          `${formatAmount(booking.mainCharge.amount ?? booking.pricing.total - booking.prepayment.amount)} will be charged ` +
+          `automatically to the same card on ${chargeDate}.`
+        : `Your card has been registered. The total of ${total} will be charged automatically on ${chargeDate}.`;
 
   const intro = [
     `Hi ${booking.name},`,
@@ -425,18 +448,27 @@ export function buildCancellationEmail(booking: Booking): GuestEmail {
     ? `As you requested, your booking at ${PROPERTY_NAME} has been cancelled.`
     : `Unfortunately we have had to cancel your booking at ${PROPERTY_NAME}.`;
 
-  const refunded = booking.mainCharge.refundedAmount;
+  const paid = rentalPaid(booking);
+  const refunded = rentalRefunded(booking);
+  const noMore = booking.mainCharge.status === "paid" ? `` : ` No further payments will be taken.`;
   let payment: string;
-  if (booking.mainCharge.status !== "paid") {
+  if (paid === 0) {
     payment = `Nothing has been charged to your card, and no further payments will be taken.`;
-  } else if (refunded === null) {
+  } else if (booking.mainCharge.refundedAmount === null) {
     payment = `We will be in touch about the refund of your payment.`;
+  } else if (refunded >= paid) {
+    payment = `We have refunded ${formatAmount(refunded)} to your card. Depending on your bank, it usually appears within 5–10 business days.`;
   } else if (refunded > 0) {
     payment =
-      `We have refunded ${formatAmount(refunded)} to your card. Depending on your bank, it usually appears within 5–10 business days.` +
-      (refunded < booking.pricing.total
-        ? ` The remainder of your payment of ${total} is non-refundable under our cancellation policy.`
-        : ``);
+      `We have refunded ${formatAmount(refunded)} to your card. Depending on your bank, it usually appears within 5–10 business days. ` +
+      `The remaining ${formatAmount(paid - refunded)} of your payment of ${formatAmount(paid)} is non-refundable under our ` +
+      `cancellation policy.` +
+      noMore;
+  } else if (paid < booking.pricing.total) {
+    payment =
+      `Under our cancellation policy, your prepayment of ${formatAmount(paid)} is non-refundable for cancellations made ` +
+      `less than ${FULL_REFUND_DAYS} days before check-in.` +
+      noMore;
   } else {
     payment =
       `Under our cancellation policy, the rental amount of ${total} is non-refundable for cancellations made ` +
@@ -478,6 +510,49 @@ export function buildCancellationEmail(booking: Booking): GuestEmail {
 
   return {
     subject: `Booking cancelled – ${PROPERTY_NAME}, ${formatDate(booking.checkIn)} – ${formatDate(booking.checkOut)}`,
+    text,
+    html,
+  };
+}
+
+/**
+ * E-post 4: det automatiske trekket av resten feilet. Gjesten betaler selv
+ * via «Min booking» (ny Checkout-lenke hver gang, med 3D Secure). Ren funksjon.
+ */
+export function buildPaymentFailedEmail(booking: Booking): GuestEmail {
+  const amount = formatAmount(booking.mainCharge.amount ?? booking.pricing.total);
+  const url = booking.guestToken ? guestBookingUrl(booking.guestToken) : `${siteUrl()}/book`;
+  const intro = [
+    `Hi ${booking.name},`,
+    ``,
+    `We tried to charge the remaining ${amount} for your stay at ${PROPERTY_NAME}, but the payment did not go through. ` +
+      `This often happens when the bank wants you to approve the payment yourself, or if the card has expired or been replaced.`,
+    ``,
+    `Please pay the remaining amount from your booking page – your bank may ask you to approve the payment (3D Secure). ` +
+      `Your booking is still confirmed, but we need the payment to keep it.`,
+  ];
+
+  const text = [
+    ...intro,
+    ``,
+    `Pay the remaining amount: ${url}`,
+    ``,
+    ...textTable(stayLines(booking)),
+    ``,
+    ...signatureLines(),
+  ].join("\n");
+
+  const button =
+    `<p style="margin:20px 0;"><a href="${escapeHtml(url)}" ` +
+    `style="display:inline-block;background:#26362a;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;">` +
+    `Pay the remaining amount</a></p>`;
+
+  const html = htmlDocument(
+    htmlParagraphs(intro) + button + htmlTable(stayLines(booking)) + htmlParagraphs(signatureLines()),
+  );
+
+  return {
+    subject: `Payment needed – ${PROPERTY_NAME}, ${formatDate(booking.checkIn)} – ${formatDate(booking.checkOut)}`,
     text,
     html,
   };
@@ -534,6 +609,11 @@ export async function notifyGuestOfCancellation(booking: Booking): Promise<boole
 export async function notifyGuestOfApproval(booking: Booking): Promise<boolean> {
   if (!booking.secureCardUrl) return false;
   return sendGuestEmail(booking, buildApprovalEmail(booking));
+}
+
+/** Kaster ved feil fra Resend. Returnerer false hvis gjeste-e-post ikke er satt opp. */
+export async function notifyGuestOfPaymentFailed(booking: Booking): Promise<boolean> {
+  return sendGuestEmail(booking, buildPaymentFailedEmail(booking));
 }
 
 /** Kaster ved feil fra Resend. Returnerer false hvis gjeste-e-post ikke er satt opp. */

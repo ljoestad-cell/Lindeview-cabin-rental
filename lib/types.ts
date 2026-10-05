@@ -4,15 +4,40 @@ export type BookingStatus = "pending" | "confirmed" | "declined";
 
 export type MainChargeStatus = "not_saved" | "card_saved" | "paid" | "failed";
 
+/**
+ * Resten av leien – det som ikke ble betalt som forskudd. Trekkes automatisk
+ * fra det lagrede kortet `chargeAt`. Statusen følger også kortet: "not_saved"
+ * betyr at gjesten ikke har betalt forskuddet/sikret kort ennå.
+ */
 export type MainCharge = {
   status: MainChargeStatus;
+  /** Beløpet som trekkes. null på bookinger fra før forskudd fantes – da trekkes hele pricing.total. */
+  amount: number | null;
   /** "YYYY-MM-DD" – checkIn minus CHARGE_DAYS_BEFORE_CHECKIN, eller i dag ved sen bestilling. */
   chargeAt: string | null;
   paymentIntentId: string | null;
   paidAt: string | null;
   lastError: string | null;
-  /** Sum refundert av hovedbeløpet (avbestilling + manuelle refusjoner) – null hvis ingenting er refundert. */
+  /**
+   * Sum refundert av leien – forskudd og rest til sammen (avbestilling +
+   * manuelle refusjoner). null hvis ingenting er refundert eller vurdert.
+   */
   refundedAmount: number | null;
+};
+
+export type PrepaymentStatus = "none" | "paid";
+
+/**
+ * Forskuddet (PREPAYMENT_SHARE av leien, eller alt ved sen bestilling) som
+ * gjesten betaler med 3D Secure når kortet sikres. Kortet lagres samtidig for
+ * resten, depositum og tilleggsbeløp.
+ */
+export type Prepayment = {
+  status: PrepaymentStatus;
+  /** Betalt beløp – 0 til det er betalt. */
+  amount: number;
+  paymentIntentId: string | null;
+  paidAt: string | null;
 };
 
 export type DepositStatus = "none" | "held" | "captured" | "released" | "failed";
@@ -41,7 +66,7 @@ export type ExtraCharge = {
 };
 
 /** Hvilken belastning en refusjon gjelder. */
-export type RefundTarget = "main" | "deposit" | "extra";
+export type RefundTarget = "prepayment" | "main" | "deposit" | "extra";
 
 /** Et beløp som er tilbakeført til gjesten – ved avbestilling eller manuelt fra admin. */
 export type Refund = {
@@ -58,11 +83,19 @@ export type Refund = {
 
 export const DEFAULT_MAIN_CHARGE: MainCharge = {
   status: "not_saved",
+  amount: null,
   chargeAt: null,
   paymentIntentId: null,
   paidAt: null,
   lastError: null,
   refundedAmount: null,
+};
+
+export const DEFAULT_PREPAYMENT: Prepayment = {
+  status: "none",
+  amount: 0,
+  paymentIntentId: null,
+  paidAt: null,
 };
 
 /** Uten `amount` – det settes fra gjeldende pris når bookingen opprettes. */
@@ -82,6 +115,8 @@ export type GuestEmails = {
   approvalSentAt: string | null;
   /** Kort sikret, booking bekreftet – sendes bare én gang. */
   confirmationSentAt: string | null;
+  /** Automatisk trekk av resten feilet – gjesten ble bedt om å betale selv (siste gang). */
+  paymentFailedSentAt: string | null;
   /** Forespørsel avslått eller bekreftet booking avbestilt – sendes bare én gang, og bare hvis eieren lot avkrysningen stå. */
   cancellationSentAt: string | null;
 };
@@ -89,6 +124,7 @@ export type GuestEmails = {
 export const DEFAULT_GUEST_EMAILS: GuestEmails = {
   approvalSentAt: null,
   confirmationSentAt: null,
+  paymentFailedSentAt: null,
   cancellationSentAt: null,
 };
 
@@ -119,9 +155,10 @@ export type Booking = {
   stripeCustomerId: string | null;
   /** Kortet gjesten sikret via Checkout – brukes til alle senere off-session-belastninger. */
   defaultPaymentMethodId: string | null;
-  /** Engangslenke gjesten bruker for å sikre kortet sitt (Stripe Checkout, mode "setup"). */
+  /** Engangslenke gjesten bruker for å betale forskudd og sikre kortet (Stripe Checkout). */
   secureCardUrl: string | null;
 
+  prepayment: Prepayment;
   mainCharge: MainCharge;
   deposit: Deposit;
   extraCharges: ExtraCharge[];

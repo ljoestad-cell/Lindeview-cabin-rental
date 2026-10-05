@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { DEPOSIT_CAPTURE_REASON_MAX, DEPOSIT_HOLD_DAYS, REFUND_REASON_MAX } from "@/lib/config";
-import { addDays } from "@/lib/dates";
-import { formatEur } from "@/lib/pricing";
-import { refundableAmount, refundsFor } from "@/lib/refunds";
+import { addDays, today } from "@/lib/dates";
+import { formatEur, prepaymentAmount } from "@/lib/pricing";
+import { chargedAmount, refundableAmount, refundsFor } from "@/lib/refunds";
 import type { Booking, RefundTarget } from "@/lib/types";
 
 type Props = { booking: Booking; onUpdate: (booking: Booking) => void };
@@ -77,11 +77,26 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
       <p className="font-semibold text-foreground">Betaling</p>
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{error}</p>}
 
-      {/* Hovedbeløp */}
+      {/* Forskudd */}
+      {booking.prepayment.status === "paid" && (
+        <div className="space-y-1.5">
+          <p className="text-emerald-700">
+            {booking.prepayment.amount >= booking.pricing.total ? "Hele leien betalt" : "Forskudd betalt"}{" "}
+            {formatEur(booking.prepayment.amount)} ✓{" "}
+            {booking.prepayment.paidAt && `(${booking.prepayment.paidAt.slice(0, 10)})`}
+          </p>
+          {refundControl("prepayment")}
+        </div>
+      )}
+
+      {/* Resten (hovedbeløp) */}
       <div className="space-y-1.5">
         {booking.mainCharge.status === "not_saved" && (
           <>
-            <StatusBadge variant="yellow">Venter på at gjesten sikrer en betalingsmetode</StatusBadge>
+            <StatusBadge variant="yellow">
+              Venter på at gjesten betaler forskudd (
+              {formatEur(prepaymentAmount(booking.pricing.total, booking.checkIn, today()))})
+            </StatusBadge>
             {booking.secureCardUrl && (
               <div className="flex items-center gap-2">
                 <a
@@ -123,17 +138,20 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
               </p>
             )}
             <p className="text-muted">
-              Belastes automatisk {booking.mainCharge.chargeAt}, eller belast nå:
+              {booking.prepayment.status === "paid" ? "Resten" : "Leien"} (
+              {formatEur(booking.mainCharge.amount ?? booking.pricing.total)}) belastes automatisk{" "}
+              {booking.mainCharge.chargeAt}, eller belast nå:
             </p>
             <SmallButton busy={busy === "charge"} onClick={() => run("charge", `${base}/charge`)}>
               Belast nå
             </SmallButton>
           </>
         )}
-        {booking.mainCharge.status === "paid" && (
+        {booking.mainCharge.status === "paid" && chargedAmount(booking, "main") > 0 && (
           <>
             <p className="text-emerald-700">
-              Betalt {formatEur(booking.pricing.total)} ✓{" "}
+              {booking.prepayment.status === "paid" ? "Resten betalt" : "Betalt"}{" "}
+              {formatEur(chargedAmount(booking, "main"))} ✓{" "}
               {booking.mainCharge.paidAt && `(${booking.mainCharge.paidAt.slice(0, 10)})`}
             </p>
             {refundControl("main")}
@@ -146,7 +164,14 @@ export default function PaymentPanel({ booking, onUpdate }: Props) {
         )}
         {booking.mainCharge.status === "failed" && (
           <>
-            <p className="text-red-700">Betaling feilet: {booking.mainCharge.lastError}</p>
+            <p className="text-red-700">
+              Trekk av {formatEur(booking.mainCharge.amount ?? booking.pricing.total)} feilet: {booking.mainCharge.lastError}
+            </p>
+            {booking.guestEmails.paymentFailedSentAt && (
+              <p className="text-xs text-muted">
+                Gjesten ble bedt om å betale selv {booking.guestEmails.paymentFailedSentAt.slice(0, 10)}
+              </p>
+            )}
             <SmallButton busy={busy === "charge"} onClick={() => run("charge", `${base}/charge`)}>
               Prøv igjen
             </SmallButton>

@@ -59,12 +59,16 @@ const CSV_COLUMNS: [string, (b: Booking) => string | number | null][] = [
   ["E-post", (b) => b.email],
   ["Telefon", (b) => b.phone],
   ["Totalt (EUR)", (b) => b.pricing.total],
+  ["Forskudd (EUR)", (b) => (b.prepayment?.status === "paid" ? b.prepayment.amount : null)],
+  ["Forskudd betalt dato", (b) => b.prepayment?.paidAt?.slice(0, 10) ?? null],
   ["Betaling", (b) => (b.mainCharge ? CHARGE_LABEL[b.mainCharge.status] : null)],
   ["Betalt dato", (b) => b.mainCharge?.paidAt?.slice(0, 10) ?? null],
-  // Hovedbeløpets sum ligger i mainCharge.refundedAmount (også eldre avbestillinger uten loggrad);
-  // depositum og tilleggsbeløp telles fra refusjonsloggen.
+  // Leiens sum (forskudd + rest) ligger i mainCharge.refundedAmount (også eldre avbestillinger uten
+  // loggrad); depositum og tilleggsbeløp telles fra refusjonsloggen.
   ["Refundert (EUR)", (b) => {
-    const other = (b.refunds ?? []).filter((r) => r.target !== "main").reduce((sum, r) => sum + r.amount, 0);
+    const other = (b.refunds ?? [])
+      .filter((r) => r.target !== "main" && r.target !== "prepayment")
+      .reduce((sum, r) => sum + r.amount, 0);
     if (b.mainCharge?.refundedAmount == null && other === 0) return null;
     return Math.round(((b.mainCharge?.refundedAmount ?? 0) + other) * 100) / 100;
   }],

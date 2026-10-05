@@ -1,13 +1,15 @@
 import {
   BEDDING_PRICE,
+  CHARGE_DAYS_BEFORE_CHECKIN,
   CLEANING_FEE,
   CURRENCY,
   DEPOSIT_AMOUNT,
   EV_CHARGER_PRICE,
   NIGHTLY_RATE,
   PET_PRICE,
+  PREPAYMENT_SHARE,
 } from "@/lib/config";
-import { nightsBetween } from "@/lib/dates";
+import { addDays, nightsBetween } from "@/lib/dates";
 
 /** Alle priser eieren kan endre i /admin/priser (lagret via lib/prices.ts). */
 export type Prices = {
@@ -85,6 +87,16 @@ export function quote(
     total: nightsTotal + prices.cleaningFee + extrasTotal,
     currency: CURRENCY,
   };
+}
+
+/**
+ * Forskuddet gjesten betaler når kortet sikres `today`: PREPAYMENT_SHARE av
+ * leien, avrundet til hele cent – eller hele leien hvis resten allerede ville
+ * forfalt (innsjekk nærmere enn CHARGE_DAYS_BEFORE_CHECKIN dager).
+ */
+export function prepaymentAmount(total: number, checkIn: string, today: string): number {
+  if (addDays(checkIn, -CHARGE_DAYS_BEFORE_CHECKIN) <= today) return total;
+  return Math.round(total * PREPAYMENT_SHARE * 100) / 100;
 }
 
 /** "1 000,00 €" – norsk tallformat med euro-symbol. */

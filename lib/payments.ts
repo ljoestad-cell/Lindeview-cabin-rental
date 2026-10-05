@@ -1,14 +1,18 @@
 import Stripe from "stripe";
 import { CURRENCY } from "@/lib/config";
+import { today } from "@/lib/dates";
+import { prepaymentAmount } from "@/lib/pricing";
 import { guestBookingUrl, siteUrl } from "@/lib/site";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import type { Booking } from "@/lib/types";
 
 /**
- * Ekte Stripe-integrasjon. Kortet lagres via Checkout i "setup"-modus når en
- * booking bekreftes (ingen belastning da) – alle senere belastninger
- * (hovedbeløp, depositum, tilleggsbeløp) skjer off-session mot det lagrede
- * kortet, trigget av cron-jobben eller admin-knapper.
+ * Ekte Stripe-integrasjon. Når en booking bekreftes, betaler gjesten
+ * forskuddet via Checkout med 3D Secure, og kortet lagres samtidig
+ * (setup_future_usage). Alle senere belastninger (resten, depositum,
+ * tilleggsbeløp) skjer off-session mot det lagrede kortet, trigget av
+ * cron-jobben eller admin-knapper. Bytter gjesten kort etter forskuddet,
+ * brukes Checkout i "setup"-modus (ingen belastning).
  *
  * Uten STRIPE_SECRET_KEY gjør alt her ingenting/kaster tydelig – samme
  * mønster som lib/calendar.ts. Resten av bookingflyten fungerer uansett.
@@ -43,9 +47,62 @@ async function getOrCreateCustomer(booking: Booking): Promise<string> {
   return customer.id;
 }
 
+/** Hva en Checkout-økt gjelder – lagres i metadata og leses av webhooken. */
+export type CheckoutKind = "prepayment" | "rest" | "card";
+
+function successUrl(booking: Booking, kind: CheckoutKind): string {
+  return `${siteUrl()}/book/sikret?booking=${booking.id}&kind=${kind}`;
+}
+
+// Avbryter gjesten, havner de tilbake på sin egen bookingside (eldre bookinger uten token: /book).
+function cancelUrl(booking: Booking): string {
+  return booking.guestToken ? guestBookingUrl(booking.guestToken) : `${siteUrl()}/book`;
+}
+
 /**
- * Oppretter en Stripe Checkout-økt (mode "setup") som lar gjesten sikre en
- * betalingsmetode uten at noe belastes. Returnerer null uten Stripe-oppsett.
+ * Checkout-økt der gjesten betaler `amount` mens de er til stede. Ber alltid
+ * om 3D Secure (banken tar da ansvaret ved svindel), og lagrer kortet for
+ * senere off-session-belastninger.
+ */
+async function createPaymentSession(
+  booking: Booking,
+  customerId: string,
+  amount: number,
+  kind: CheckoutKind,
+  productName: string,
+): Promise<string> {
+  const session = await getStripe().checkout.sessions.create({
+    mode: "payment",
+    customer: customerId,
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: CURRENCY.toLowerCase(),
+          unit_amount: toMinorUnits(amount),
+          product_data: { name: productName },
+        },
+      },
+    ],
+    payment_intent_data: {
+      setup_future_usage: "off_session",
+      metadata: { bookingId: booking.id, kind },
+    },
+    payment_method_options: { card: { request_three_d_secure: "any" } },
+    success_url: successUrl(booking, kind),
+    cancel_url: cancelUrl(booking),
+    metadata: { bookingId: booking.id, kind },
+  });
+  if (!session.url) throw new Error("Stripe returnerte ingen URL for Checkout-økten.");
+  return session.url;
+}
+
+/**
+ * Lenken gjesten bruker for å sikre bookingen. Uten lagret kort: betal
+ * forskuddet (hele beløpet ved sen bestilling) og lagre kortet. Med lagret
+ * kort (gjesten bytter kort): Checkout i "setup"-modus, ingen belastning.
+ * Returnerer null uten Stripe-oppsett.
  */
 export async function createSecureCardSession(
   booking: Booking,
@@ -58,18 +115,56 @@ export async function createSecureCardSession(
   const stripe = getStripe();
   const customerId = await getOrCreateCustomer(booking);
 
+  if (booking.mainCharge.status === "not_saved") {
+    const amount = prepaymentAmount(booking.pricing.total, booking.checkIn, today());
+    const name =
+      amount < booking.pricing.total
+        ? `Forskudd – ${booking.checkIn} til ${booking.checkOut}`
+        : `Leie – ${booking.checkIn} til ${booking.checkOut}`;
+    const checkoutUrl = await createPaymentSession(booking, customerId, amount, "prepayment", name);
+    return { checkoutUrl, customerId };
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: "setup",
     customer: customerId,
     payment_method_types: ["card"],
-    success_url: `${siteUrl()}/book/sikret?booking=${booking.id}`,
-    // Avbryter gjesten, havner de tilbake på sin egen bookingside (eldre bookinger uten token: /book).
-    cancel_url: booking.guestToken ? guestBookingUrl(booking.guestToken) : `${siteUrl()}/book`,
-    metadata: { bookingId: booking.id },
+    success_url: successUrl(booking, "card"),
+    cancel_url: cancelUrl(booking),
+    metadata: { bookingId: booking.id, kind: "card" },
   });
 
   if (!session.url) throw new Error("Stripe returnerte ingen URL for Checkout-økten.");
   return { checkoutUrl: session.url, customerId };
+}
+
+/**
+ * Lenken gjesten bruker for å betale resten selv når det automatiske trekket
+ * feilet (kortet avvist, eller banken krever 3D Secure). Kortet som brukes
+ * lagres som nytt standardkort.
+ */
+export async function createRestPaymentSession(booking: Booking, amount: number): Promise<string> {
+  const customerId = await getOrCreateCustomer(booking);
+  return createPaymentSession(
+    booking,
+    customerId,
+    amount,
+    "rest",
+    `Resten av leien – ${booking.checkIn} til ${booking.checkOut}`,
+  );
+}
+
+/** Det gjesten faktisk betalte i en fullført Checkout-økt i "payment"-modus. */
+export async function getCheckoutPayment(
+  session: Stripe.Checkout.Session,
+): Promise<{ paymentIntentId: string; paymentMethodId: string; amount: number } | null> {
+  const intentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+  if (!intentId) return null;
+  const intent = await getStripe().paymentIntents.retrieve(intentId);
+  const pm = intent.payment_method;
+  const paymentMethodId = typeof pm === "string" ? pm : pm?.id;
+  if (!paymentMethodId || intent.status !== "succeeded") return null;
+  return { paymentIntentId: intent.id, paymentMethodId, amount: intent.amount_received / 100 };
 }
 
 /** Henter payment method-id fra en fullført setup-økt sin SetupIntent. */
@@ -107,15 +202,24 @@ async function offSessionCharge(
     return { ok: true, paymentIntentId: intent.id };
   } catch (err) {
     if (err instanceof Stripe.errors.StripeError) {
+      // Banken vil at gjesten godkjenner selv – gjesten får en betalingslenke (se applyMainChargeResult).
+      if (err.code === "authentication_required") {
+        return { ok: false, error: "Banken krever at gjesten godkjenner betalingen selv (3D Secure)." };
+      }
       return { ok: false, error: err.message };
     }
     throw err;
   }
 }
 
-/** Belaster hovedbeløpet (leie + utvask) på det lagrede kortet. */
+/** Det som gjenstår av leien etter forskuddet (hele leien på bookinger fra før forskudd fantes). */
+export function mainChargeAmount(booking: Booking): number {
+  return booking.mainCharge.amount ?? booking.pricing.total;
+}
+
+/** Belaster resten av leien på det lagrede kortet. */
 export async function chargeMainAmount(booking: Booking): Promise<PaymentResult> {
-  return offSessionCharge(booking, booking.pricing.total, "main");
+  return offSessionCharge(booking, mainChargeAmount(booking), "main");
 }
 
 /** Reserverer (autoriserer, uten å trekke) depositumet – kalles dagen før utsjekk. */

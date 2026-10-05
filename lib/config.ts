@@ -33,11 +33,26 @@ export const DECLINE_REASON_MAX = 200;
 /** Maks lengde på meldingen gjesten kan legge ved når de ber om avbestilling. */
 export const CANCELLATION_MESSAGE_MAX = 500;
 /**
- * Hovedbeløpet belastes automatisk dette antall dager før innsjekk – første
- * dag etter at fristen for gratis avbestilling (FULL_REFUND_DAYS) er ute, så
- * vi aldri trekker et beløp gjesten fortsatt kan få refundert.
+ * Resten av leien (alt utover forskuddet) belastes automatisk dette antall
+ * dager før innsjekk – første dag etter at fristen for gratis avbestilling
+ * (FULL_REFUND_DAYS) er ute, så vi aldri trekker et beløp gjesten fortsatt kan
+ * få refundert.
  */
 export const CHARGE_DAYS_BEFORE_CHECKIN = 29;
+
+/**
+ * Andelen av leien gjesten betaler som forskudd når kortet sikres (Checkout
+ * med 3D Secure). Ved sen bestilling – når restbeløpet allerede ville
+ * forfalt – betales alt med en gang. Se prepaymentAmount i lib/pricing.ts.
+ */
+export const PREPAYMENT_SHARE = 0.25;
+
+/**
+ * Beholdes av forskuddet når gjesten avbestiller innen fristen for gratis
+ * avbestilling – dekker blant annet Stripe-gebyret. Eieren som avlyser
+ * refunderer alltid alt.
+ */
+export const EARLY_CANCELLATION_FEE = 50;
 
 /** Kalenderen er åpen fra og med denne datoen (innsjekk). */
 export const SEASON_START = "2027-05-01";
@@ -62,15 +77,15 @@ export const BEDDING_MAX = 10;
 
 /**
  * Avbestilling fra gjesten (se lib/cancellation.ts og /vilkar):
- * - minst FULL_REFUND_DAYS dager før innsjekk: alt refunderes (normalt er ingenting trukket ennå)
+ * - minst FULL_REFUND_DAYS dager før innsjekk: forskuddet refunderes minus
+ *   EARLY_CANCELLATION_FEE (resten er normalt ikke trukket ennå)
  * - senere: ingen refusjon
- * Hovedbeløpet trekkes dagen etter at fristen er ute (CHARGE_DAYS_BEFORE_CHECKIN)
- * – avbestilling før trekket koster altså ingenting, etter trekket refunderes ingenting.
+ * Resten trekkes dagen etter at fristen er ute (CHARGE_DAYS_BEFORE_CHECKIN).
  */
 export const FULL_REFUND_DAYS = CHARGE_DAYS_BEFORE_CHECKIN + 1;
 
 /** Øk (ny dato) når leievilkårene på /vilkar endres – lagres på hver booking som «godtatt versjon». */
-export const TERMS_VERSION = "2026-10-03";
+export const TERMS_VERSION = "2026-10-05";
 
 /**
  * Personopplysninger (navn, e-post, telefon, melding) anonymiseres automatisk

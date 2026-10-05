@@ -17,9 +17,9 @@ import {
   SEASON_START,
   TERMS_VERSION,
 } from "@/lib/config";
-import { policyRefundAmount } from "@/lib/cancellation";
+import { policyRefund } from "@/lib/cancellation";
 import { findConflict } from "@/lib/conflicts";
-import { canRequestCancellation, canUpdateCard } from "@/lib/guest";
+import { canPayRest, canRequestCancellation, canUpdateCard } from "@/lib/guest";
 import { addDays, addMonths, isIsoDate, isWithinSeason, nightsBetween, rangesOverlap, today } from "@/lib/dates";
 import { parseIcsBusyRanges } from "@/lib/ical";
 import {
@@ -28,15 +28,17 @@ import {
   notifyGuestOfCancellation,
   notifyGuestOfDeclinedRequest,
   notifyGuestOfConfirmation,
+  notifyGuestOfPaymentFailed,
   notifyOwnerOfBooking,
   notifyOwnerOfCancellationRequest,
   notifyOwnerOfDoubleBooking,
   notifyOwnerOfPaymentIssue,
+  notifyOwnerOfRestPaid,
 } from "@/lib/notifications";
 import * as payments from "@/lib/payments";
 import { isStripeConfigured } from "@/lib/stripe";
 import { getPrices } from "@/lib/prices";
-import { paymentIntentFor, refundableAmount } from "@/lib/refunds";
+import { chargedAmount, paymentIntentFor, refundableAmount, refundedSoFar } from "@/lib/refunds";
 import { DEFAULT_EXTRAS, formatEur, quote, type BookingExtras, type Prices } from "@/lib/pricing";
 import { guestBookingUrl } from "@/lib/site";
 import { getStore } from "@/lib/store";
@@ -45,6 +47,7 @@ import {
   DEFAULT_DEPOSIT,
   DEFAULT_GUEST_EMAILS,
   DEFAULT_MAIN_CHARGE,
+  DEFAULT_PREPAYMENT,
   type BlockedRange,
   type Booking,
   type BookingRequestInput,
@@ -70,6 +73,7 @@ function normalizeBooking(booking: Booking): Booking {
     stripeCustomerId: booking.stripeCustomerId ?? null,
     defaultPaymentMethodId: booking.defaultPaymentMethodId ?? null,
     secureCardUrl: booking.secureCardUrl ?? null,
+    prepayment: { ...DEFAULT_PREPAYMENT, ...booking.prepayment },
     mainCharge: { ...DEFAULT_MAIN_CHARGE, ...booking.mainCharge },
     // Bookinger fra før depositum ble lagret på bookingen fikk standardbeløpet.
     deposit: { ...DEFAULT_DEPOSIT, ...booking.deposit, amount: booking.deposit?.amount ?? DEPOSIT_AMOUNT },
@@ -171,6 +175,7 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     stripeCustomerId: null,
     defaultPaymentMethodId: null,
     secureCardUrl: null,
+    prepayment: { ...DEFAULT_PREPAYMENT },
     mainCharge: { ...DEFAULT_MAIN_CHARGE },
     deposit: { ...DEFAULT_DEPOSIT, amount: prices.deposit },
     extraCharges: [],
@@ -284,6 +289,20 @@ export async function startGuestCardUpdate(booking: Booking): Promise<string> {
   const updated = await refreshSecureCardLink(booking);
   if (!updated.secureCardUrl) throw new BookingValidationError("Kunne ikke lage betalingslenke – prøv igjen.");
   return updated.secureCardUrl;
+}
+
+/**
+ * Gjesten betaler resten selv fra «Min booking» etter at det automatiske
+ * trekket feilet. Lager alltid en ny Checkout-lenke (de utløper etter et døgn).
+ */
+export async function startGuestRestPayment(booking: Booking): Promise<string> {
+  if (!canPayRest(booking)) {
+    throw new BookingValidationError("Det er ingenting å betale på denne bookingen nå.");
+  }
+  if (!isStripeConfigured()) {
+    throw new BookingValidationError("Betaling er ikke tilgjengelig akkurat nå – ta kontakt med oss.");
+  }
+  return payments.createRestPaymentSession(booking, payments.mainChargeAmount(booking));
 }
 
 /** Henter én booking (admin-bruk). Returnerer null hvis den ikke finnes. */
@@ -422,31 +441,31 @@ export async function setStatus(
     }
   }
 
-  if (status === "declined" && updated.mainCharge.status === "paid") {
+  if (status === "declined" && (chargedAmount(updated, "prepayment") > 0 || chargedAmount(updated, "main") > 0)) {
     // Det som allerede er refundert (manuelt eller ved en tidligere avbestilling)
     // trekkes fra, så en booking aldri refunderes mer enn vilkårene sier.
-    const entitled =
-      refundMode === "policy"
-        ? policyRefundAmount(updated.pricing.total, updated.checkIn, today())
-        : updated.pricing.total;
-    const amount = Math.min(
-      refundableAmount(updated, "main"),
-      Math.max(0, Math.round((entitled - (updated.mainCharge.refundedAmount ?? 0)) * 100) / 100),
-    );
-    try {
-      if (amount > 0) {
-        const reason = refundMode === "policy" ? "Avbestilling – etter leievilkårene" : "Avbestilling – full refusjon";
-        const result = await applyRefund(updated, "main", null, amount, reason);
+    const policy = refundMode === "policy" ? policyRefund(updated, today()) : null;
+    const reasonText = refundMode === "policy" ? "Avbestilling – etter leievilkårene" : "Avbestilling – full refusjon";
+    for (const target of ["prepayment", "main"] as const) {
+      const entitled = policy ? policy[target] : chargedAmount(updated, target);
+      const amount = Math.min(
+        refundableAmount(updated, target),
+        Math.max(0, Math.round((entitled - refundedSoFar(updated, target)) * 100) / 100),
+      );
+      if (amount <= 0) continue;
+      try {
+        const result = await applyRefund(updated, target, null, amount, reasonText);
         if (result.ok) updated = result.booking;
         else console.error("[bookings] Refusjon feilet:", result.error);
-      } else if (updated.mainCharge.refundedAmount === null) {
-        // Ingenting å refundere etter vilkårene – lagres som 0 så admin viser at det er vurdert.
-        const mainCharge = { ...updated.mainCharge, refundedAmount: 0 };
-        await store.updateBooking(id, { mainCharge });
-        updated = { ...updated, mainCharge };
+      } catch (err) {
+        console.error("[bookings] Kunne ikke refundere leie:", err);
       }
-    } catch (err) {
-      console.error("[bookings] Kunne ikke refundere hovedbeløp:", err);
+    }
+    if (updated.mainCharge.refundedAmount === null) {
+      // Ingenting å refundere etter vilkårene – lagres som 0 så admin viser at det er vurdert.
+      const mainCharge = { ...updated.mainCharge, refundedAmount: 0 };
+      await store.updateBooking(id, { mainCharge });
+      updated = { ...updated, mainCharge };
     }
   }
 
@@ -590,10 +609,77 @@ export async function removeBlockedRange(id: string): Promise<void> {
 // --- Betaling ---------------------------------------------------------
 
 /**
- * Kalles fra Stripe-webhooken når gjesten har sikret et kort (checkout.session.completed,
- * mode "setup"). Lagrer kortet og avgjør om hovedbeløpet skal belastes med
- * en gang (sen bestilling) eller planlegges til CHARGE_DAYS_BEFORE_CHECKIN
- * dager før innsjekk.
+ * Kalles fra Stripe-webhooken når gjesten har betalt forskuddet
+ * (checkout.session.completed, mode "payment", kind "prepayment"). Lagrer
+ * kortet og forskuddet, og planlegger resten til CHARGE_DAYS_BEFORE_CHECKIN
+ * dager før innsjekk. Betalte gjesten alt (sen bestilling), er leien betalt.
+ * Stripe kan levere samme webhook flere ganger – da gjøres ingenting.
+ */
+export async function recordPrepayment(
+  bookingId: string,
+  customerId: string,
+  payment: { paymentIntentId: string; paymentMethodId: string; amount: number },
+): Promise<void> {
+  const booking = await loadBooking(bookingId);
+  if (!booking || booking.prepayment.status === "paid") return;
+
+  const now = new Date().toISOString();
+  const rest = Math.max(0, Math.round((booking.pricing.total - payment.amount) * 100) / 100);
+  const patch = {
+    stripeCustomerId: customerId,
+    defaultPaymentMethodId: payment.paymentMethodId,
+    prepayment: { status: "paid" as const, amount: payment.amount, paymentIntentId: payment.paymentIntentId, paidAt: now },
+    mainCharge:
+      rest > 0
+        ? { ...booking.mainCharge, status: "card_saved" as const, amount: rest, chargeAt: computeChargeAt(booking.checkIn) }
+        : { ...booking.mainCharge, status: "paid" as const, amount: 0, chargeAt: null, paidAt: now, lastError: null },
+  };
+  await getStore().updateBooking(bookingId, patch);
+  let updated: Booking = { ...booking, ...patch };
+
+  // Skal ikke skje (forskuddet er hele beløpet når resten forfaller), men en
+  // betalingslenke laget dagen før fristen kan brukes dagen etter.
+  if (updated.mainCharge.status === "card_saved" && updated.mainCharge.chargeAt! <= today()) {
+    updated = (await retryMainCharge(updated.id)) ?? updated;
+  }
+
+  await sendConfirmationEmail(updated);
+}
+
+/**
+ * Kalles fra Stripe-webhooken når gjesten har betalt resten selv etter et
+ * feilet automatisk trekk (kind "rest"). Kortet blir nytt standardkort.
+ */
+export async function recordRestPayment(
+  bookingId: string,
+  payment: { paymentIntentId: string; paymentMethodId: string; amount: number },
+): Promise<void> {
+  const booking = await loadBooking(bookingId);
+  if (!booking || booking.mainCharge.status === "paid") return;
+
+  const patch = {
+    defaultPaymentMethodId: payment.paymentMethodId,
+    mainCharge: {
+      ...booking.mainCharge,
+      status: "paid" as const,
+      amount: payment.amount,
+      paymentIntentId: payment.paymentIntentId,
+      paidAt: new Date().toISOString(),
+      lastError: null,
+    },
+  };
+  await getStore().updateBooking(bookingId, patch);
+  try {
+    await notifyOwnerOfRestPaid({ ...booking, ...patch });
+  } catch (err) {
+    console.error("[bookings] Kunne ikke varsle eieren om betalt rest:", err);
+  }
+}
+
+/**
+ * Kalles fra Stripe-webhooken når gjesten har byttet kort (mode "setup").
+ * Har gjesten ikke betalt forskudd (bookinger fra før forskudd fantes),
+ * planlegges hele leien som før. Ellers byttes bare kortet.
  */
 export async function attachPaymentMethod(
   bookingId: string,
@@ -603,9 +689,13 @@ export async function attachPaymentMethod(
   const booking = await loadBooking(bookingId);
   if (!booking) return;
 
-  const chargeAt = computeChargeAt(booking.checkIn);
   const store = getStore();
+  if (booking.mainCharge.status !== "not_saved") {
+    await store.updateBooking(bookingId, { stripeCustomerId: customerId, defaultPaymentMethodId: paymentMethodId });
+    return;
+  }
 
+  const chargeAt = computeChargeAt(booking.checkIn);
   const patch = {
     stripeCustomerId: customerId,
     defaultPaymentMethodId: paymentMethodId,
@@ -660,19 +750,38 @@ async function applyMainChargeResult(booking: Booking, result: payments.PaymentR
     mainCharge: { ...booking.mainCharge, status: "failed" as const, lastError: result.error },
   };
   await store.updateBooking(booking.id, patch);
+  const updated: Booking = { ...booking, ...patch };
   try {
-    await notifyOwnerOfPaymentIssue({ ...booking, ...patch }, result.error);
+    await notifyOwnerOfPaymentIssue(updated, result.error);
   } catch (err) {
     console.error("[bookings] Kunne ikke varsle om betalingsfeil:", err);
   }
-  return { ...booking, ...patch };
+  return sendPaymentFailedEmail(updated);
+}
+
+/**
+ * Ber gjesten betale resten selv via «Min booking» (med 3D Secure). Eieren
+ * er varslet og avgjør selv om bookingen skal avbestilles hvis ingenting skjer.
+ */
+async function sendPaymentFailedEmail(booking: Booking): Promise<Booking> {
+  try {
+    booking = await ensureGuestToken(booking);
+    const sent = await notifyGuestOfPaymentFailed(booking);
+    if (!sent) return booking;
+    const guestEmails = { ...booking.guestEmails, paymentFailedSentAt: new Date().toISOString() };
+    await getStore().updateBooking(booking.id, { guestEmails });
+    return { ...booking, guestEmails };
+  } catch (err) {
+    console.error("[bookings] Kunne ikke sende betalingsfeil-e-post til gjesten:", err);
+    return booking;
+  }
 }
 
 /** Belaster hovedbeløpet nå – kalt fra cron når forfalt, eller manuelt fra admin. */
 export async function retryMainCharge(bookingId: string): Promise<Booking | null> {
   const booking = await loadBooking(bookingId);
   if (!booking) return null;
-  if (!isStripeConfigured()) return booking;
+  if (!isStripeConfigured() || booking.mainCharge.status === "paid") return booking;
 
   const result = await payments.chargeMainAmount(booking);
   return applyMainChargeResult(booking, result);
@@ -798,7 +907,7 @@ async function applyRefund(
     stripeRefundId: result.paymentIntentId,
   };
   const patch: Partial<Booking> = { refunds: [...booking.refunds, entry] };
-  if (target === "main") {
+  if (target === "main" || target === "prepayment") {
     patch.mainCharge = {
       ...booking.mainCharge,
       refundedAmount: Math.round(((booking.mainCharge.refundedAmount ?? 0) + amount) * 100) / 100,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chargedAmount, refundableAmount, refundedSoFar } from "@/lib/refunds";
+import { chargedAmount, refundableAmount, refundedSoFar, rentalPaid, rentalRefunded } from "@/lib/refunds";
 import type { Booking, Refund } from "@/lib/types";
 
 function refund(target: Refund["target"], amount: number, extraChargeId: string | null = null): Refund {
@@ -55,5 +55,37 @@ describe("refundableAmount", () => {
   it("bruker hele depositumet når det ble trukket uten delbeløp", () => {
     const b = booking({ deposit: { status: "captured", amount: 1000, capturedAmount: null } as Booking["deposit"] });
     expect(refundableAmount(b, "deposit")).toBe(1000);
+  });
+});
+
+describe("forskudd", () => {
+  const withPrepayment = (overrides: Partial<Booking> = {}) =>
+    booking({
+      prepayment: { status: "paid", amount: 622.63, paymentIntentId: "pi_pre", paidAt: null },
+      mainCharge: { status: "paid", amount: 1867.87, paymentIntentId: "pi_main", refundedAmount: null } as Booking["mainCharge"],
+      ...overrides,
+    });
+
+  it("forskudd og rest refunderes hver for seg, mot hvert sitt beløp", () => {
+    const b = withPrepayment();
+    expect(refundableAmount(b, "prepayment")).toBe(622.63);
+    expect(refundableAmount(b, "main")).toBe(1867.87);
+    expect(rentalPaid(b)).toBe(2490.5);
+  });
+
+  it("refundedAmount (sum for leien) dobbelttelles ikke mot loggen", () => {
+    const b = withPrepayment({
+      mainCharge: { status: "paid", amount: 1867.87, refundedAmount: 672.63 } as Booking["mainCharge"],
+      refunds: [refund("prepayment", 572.63), refund("main", 100)],
+    });
+    expect(refundedSoFar(b, "prepayment")).toBe(572.63);
+    expect(refundedSoFar(b, "main")).toBe(100);
+    expect(rentalRefunded(b)).toBe(672.63);
+    expect(refundableAmount(b, "prepayment")).toBe(50);
+  });
+
+  it("ubetalt forskudd gir 0", () => {
+    const b = booking({ prepayment: { status: "none", amount: 0 } as Booking["prepayment"] });
+    expect(chargedAmount(b, "prepayment")).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FULL_REFUND_DAYS } from "@/lib/config";
 import { addDays } from "@/lib/dates";
-import { canRequestCancellation, canUpdateCard, freeCancellationDeadline, guestStatusLabel } from "@/lib/guest";
+import { canPayRest, canRequestCancellation, canUpdateCard, freeCancellationDeadline, guestStatusLabel } from "@/lib/guest";
 import type { Booking } from "@/lib/types";
 
 function booking(overrides: Partial<Booking> = {}): Booking {
@@ -39,24 +39,39 @@ describe("canRequestCancellation", () => {
 });
 
 describe("canUpdateCard", () => {
-  it("tillater kortbytte på bekreftede bookinger som ikke er betalt", () => {
-    for (const status of ["not_saved", "card_saved", "failed"] as const) {
+  it("tillater forskudd/kortbytte på bekreftede bookinger før resten er trukket", () => {
+    for (const status of ["not_saved", "card_saved"] as const) {
       expect(canUpdateCard(booking({ mainCharge: { status } as Booking["mainCharge"] }))).toBe(true);
     }
   });
 
-  it("stopper når hovedbeløpet er betalt, og på ventende/avslåtte bookinger", () => {
+  it("stopper når resten er betalt eller feilet, og på ventende/avslåtte bookinger", () => {
     expect(canUpdateCard(booking({ mainCharge: { status: "paid" } as Booking["mainCharge"] }))).toBe(false);
+    expect(canUpdateCard(booking({ mainCharge: { status: "failed" } as Booking["mainCharge"] }))).toBe(false);
     expect(canUpdateCard(booking({ status: "pending" }))).toBe(false);
     expect(canUpdateCard(booking({ status: "declined" }))).toBe(false);
   });
 });
 
+describe("canPayRest", () => {
+  it("bare når trekket av resten feilet på en bekreftet booking", () => {
+    expect(canPayRest(booking({ mainCharge: { status: "failed" } as Booking["mainCharge"] }))).toBe(true);
+    expect(canPayRest(booking())).toBe(false);
+    expect(canPayRest(booking({ mainCharge: { status: "paid" } as Booking["mainCharge"] }))).toBe(false);
+    expect(
+      canPayRest(booking({ status: "declined", mainCharge: { status: "failed" } as Booking["mainCharge"] })),
+    ).toBe(false);
+  });
+});
+
 describe("guestStatusLabel", () => {
-  it("skiller mellom forespørsel, venter på kort, bekreftet og avslått", () => {
+  it("skiller mellom forespørsel, venter på forskudd, betaling mangler, bekreftet og avslått", () => {
     expect(guestStatusLabel(booking({ status: "pending" }))).toBe("Forespørsel mottatt");
     expect(guestStatusLabel(booking({ mainCharge: { status: "not_saved" } as Booking["mainCharge"] }))).toBe(
-      "Bekreftet – venter på kort",
+      "Bekreftet – venter på forskudd",
+    );
+    expect(guestStatusLabel(booking({ mainCharge: { status: "failed" } as Booking["mainCharge"] }))).toBe(
+      "Bekreftet – betaling mangler",
     );
     expect(guestStatusLabel(booking())).toBe("Bekreftet");
     expect(guestStatusLabel(booking({ status: "declined", cancelledBy: "owner" }))).toBe("Avslått");

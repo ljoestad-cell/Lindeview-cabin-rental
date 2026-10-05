@@ -1,16 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import Stripe from "stripe";
-import { attachPaymentMethod } from "@/lib/bookings";
-import { getPaymentMethodFromSetupIntent } from "@/lib/payments";
+import { attachPaymentMethod, recordPrepayment, recordRestPayment } from "@/lib/bookings";
+import { getCheckoutPayment, getPaymentMethodFromSetupIntent } from "@/lib/payments";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Stripe-webhook. Må lese raw body (ikke request.json()) for at
- * signaturverifiseringen skal stemme. Håndterer kun setup-økten som lagrer
- * gjestens kort – selve belastningene skjer off-session andre steder
- * (cron-jobben / admin-knapper) og trenger ingen webhook.
+ * signaturverifiseringen skal stemme. Håndterer Checkout-øktene gjesten
+ * fullfører selv: forskudd (lagrer også kortet), betaling av resten etter et
+ * feilet trekk, og kortbytte. Off-session-belastningene (cron-jobben /
+ * admin-knapper) får svaret direkte og trenger ingen webhook.
  */
 export async function POST(request: NextRequest) {
   if (!isStripeConfigured()) {
@@ -43,15 +44,22 @@ export async function POST(request: NextRequest) {
     const setupIntentId =
       typeof session.setup_intent === "string" ? session.setup_intent : session.setup_intent?.id;
 
-    if (session.mode === "setup" && bookingId && customerId && setupIntentId) {
-      try {
+    try {
+      if (session.mode === "setup" && bookingId && customerId && setupIntentId) {
         const paymentMethodId = await getPaymentMethodFromSetupIntent(setupIntentId);
         if (paymentMethodId) {
           await attachPaymentMethod(bookingId, customerId, paymentMethodId);
         }
-      } catch (err) {
-        console.error("[stripe-webhook] Kunne ikke lagre betalingsmetode:", err);
+      } else if (session.mode === "payment" && session.payment_status === "paid" && bookingId && customerId) {
+        const payment = await getCheckoutPayment(session);
+        const kind = session.metadata?.kind;
+        if (payment && kind === "prepayment") await recordPrepayment(bookingId, customerId, payment);
+        else if (payment && kind === "rest") await recordRestPayment(bookingId, payment);
       }
+    } catch (err) {
+      // 500 får Stripe til å prøve igjen senere – behandlingen over tåler å kjøres flere ganger.
+      console.error("[stripe-webhook] Kunne ikke lagre betalingen:", err);
+      return NextResponse.json({ error: "Kunne ikke lagre betalingen." }, { status: 500 });
     }
   }
 

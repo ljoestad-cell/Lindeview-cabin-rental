@@ -4,11 +4,14 @@ import LegalPage, { LegalSection } from "@/components/LegalPage";
 import {
   CHARGE_DAYS_BEFORE_CHECKIN,
   DEPOSIT_HOLD_DAYS,
+  EARLY_CANCELLATION_FEE,
   FULL_REFUND_DAYS,
   MAX_GUESTS,
   MIN_NIGHTS,
+  PREPAYMENT_SHARE,
   TERMS_VERSION,
 } from "@/lib/config";
+import { formatEur } from "@/lib/pricing";
 import { CONTACT_EMAIL, LOCATION_LABEL, OWNER_NAME, OWNER_PHONE_DISPLAY, PROPERTY_NAME } from "@/lib/property";
 
 export const metadata: Metadata = {
@@ -47,9 +50,16 @@ export default function TermsPage() {
           Alle beløp er i euro (EUR).
         </p>
         <p>
-          Når bookingen er bekreftet, får du en lenke for å registrere et betalingskort hos Stripe. Ingenting trekkes
-          da. <strong>Hele leiebeløpet trekkes automatisk {CHARGE_DAYS_BEFORE_CHECKIN} dager før innsjekk</strong>,
-          eller med en gang hvis bookingen bekreftes senere enn det. Vi ser eller lagrer aldri kortnummeret ditt.
+          Når bookingen er bekreftet, får du en lenke til Stripe der du{" "}
+          <strong>betaler et forskudd på {Math.round(PREPAYMENT_SHARE * 100)} % av leien</strong> og registrerer
+          kortet. Banken din ber deg normalt godkjenne betalingen (3D Secure). Bookingen er sikret når forskuddet er
+          betalt. <strong>Resten trekkes automatisk fra samme kort {CHARGE_DAYS_BEFORE_CHECKIN} dager før innsjekk</strong>.
+          Bekreftes bookingen senere enn det, betaler du hele leien med en gang. Vi ser eller lagrer aldri
+          kortnummeret ditt.
+        </p>
+        <p>
+          Går ikke det automatiske trekket gjennom, får du en e-post med lenke for å betale resten selv. Bookingen
+          gjelder fortsatt, men vi kan avbestille den hvis resten ikke blir betalt.
         </p>
       </LegalSection>
 
@@ -76,11 +86,12 @@ export default function TermsPage() {
         <p>Avbestill ved å kontakte oss på e-post eller telefon. Refusjonen avhenger av når vi får beskjed:</p>
         <ul>
           <li>
-            <strong>Minst {FULL_REFUND_DAYS} dager før innsjekk:</strong> gratis avbestilling. Normalt er ingenting
-            trukket ennå.
+            <strong>Minst {FULL_REFUND_DAYS} dager før innsjekk:</strong> du får tilbake det du har betalt, minus et
+            avbestillingsgebyr på {formatEur(EARLY_CANCELLATION_FEE)} som trekkes fra forskuddet. Resten er normalt
+            ikke trukket ennå.
           </li>
           <li>
-            <strong>Mindre enn {FULL_REFUND_DAYS} dager før innsjekk:</strong> ingen refusjon.
+            <strong>Mindre enn {FULL_REFUND_DAYS} dager før innsjekk:</strong> ingen refusjon av leien.
           </li>
         </ul>
         <p>Refusjon går tilbake til samme kort. Et depositum som ikke er reservert, trekkes ikke.</p>
