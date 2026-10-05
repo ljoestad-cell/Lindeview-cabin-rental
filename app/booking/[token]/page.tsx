@@ -13,6 +13,7 @@ import { canRequestCancellation, canUpdateCard, freeCancellationDeadline, guestS
 import { formatEur } from "@/lib/pricing";
 import { CONTACT_EMAIL, OWNER_PHONE_DISPLAY, OWNER_PHONE_TEL, PROPERTY_NAME } from "@/lib/property";
 import { isBlocked, recordFailure } from "@/lib/rate-limit";
+import { cancelledByGuest } from "@/lib/status";
 import type { Booking } from "@/lib/types";
 
 // Token i URL-en er hemmelig: ikke indekser siden, og ikke send den videre som referrer.
@@ -71,7 +72,18 @@ export default async function GuestBookingPage(props: PageProps<"/booking/[token
             <Card title="Avbestilling">
               <div className="space-y-3 text-sm text-muted">
                 {booking.status === "declined" ? (
-                  <p>Bookingen er avslått eller avbestilt.</p>
+                  <>
+                    <p>
+                      {cancelledByGuest(booking)
+                        ? "Bookingen er avbestilt, slik du ba om."
+                        : "Vi har dessverre måttet avslå eller avbestille bookingen."}
+                    </p>
+                    {!cancelledByGuest(booking) && booking.declineReason && (
+                      <p>
+                        Begrunnelse: <span className="text-foreground">{booking.declineReason}</span>
+                      </p>
+                    )}
+                  </>
                 ) : now <= deadline ? (
                   <p>
                     Gratis avbestilling til og med <span className="font-medium text-foreground">{formatDateLong(deadline)}</span>.

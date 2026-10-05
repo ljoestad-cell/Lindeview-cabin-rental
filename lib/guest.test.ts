@@ -59,6 +59,7 @@ describe("guestStatusLabel", () => {
       "Bekreftet – venter på kort",
     );
     expect(guestStatusLabel(booking())).toBe("Bekreftet");
-    expect(guestStatusLabel(booking({ status: "declined" }))).toBe("Avslått / avbestilt");
+    expect(guestStatusLabel(booking({ status: "declined", cancelledBy: "owner" }))).toBe("Avslått");
+    expect(guestStatusLabel(booking({ status: "declined", cancelledBy: "guest" }))).toBe("Avbestilt");
   });
 });

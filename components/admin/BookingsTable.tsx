@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { policyRefundAmount } from "@/lib/cancellation";
+import { DECLINE_REASON_MAX } from "@/lib/config";
 import { today } from "@/lib/dates";
 import { formatEur, type BookingExtras } from "@/lib/pricing";
+import { statusLabel } from "@/lib/status";
 import type { Booking, BookingStatus } from "@/lib/types";
 import PaymentPanel from "@/components/admin/PaymentPanel";
 
@@ -15,12 +17,6 @@ function extrasSummary(extras: BookingExtras): string {
   if (extras.bedding > 0) parts.push(`${extras.bedding} sett sengetøy/håndklær`);
   return parts.join(", ");
 }
-
-const STATUS_LABEL: Record<BookingStatus, string> = {
-  pending: "Venter",
-  confirmed: "Bekreftet",
-  declined: "Avslått",
-};
 
 const STATUS_STYLE: Record<BookingStatus, string> = {
   pending: "bg-accent/15 text-accent-dark",
@@ -67,7 +63,11 @@ export default function BookingsTable({
   async function updateStatus(
     id: string,
     status: "confirmed" | "declined",
-    { refund, notifyGuest = false }: { refund?: "policy" | "full"; notifyGuest?: boolean } = {},
+    {
+      refund,
+      notifyGuest = false,
+      reason,
+    }: { refund?: "policy" | "full"; notifyGuest?: boolean; reason?: string } = {},
   ) {
     setBusyId(id);
     setError(null);
@@ -75,7 +75,7 @@ export default function BookingsTable({
       const res = await fetch(`/api/bookings/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, refund, notifyGuest }),
+        body: JSON.stringify({ status, refund, notifyGuest, reason }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -127,7 +127,7 @@ export default function BookingsTable({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[b.status]}`}>
-                  {STATUS_LABEL[b.status]}
+                  {statusLabel(b)}
                 </span>
                 <p className="mt-2 font-display text-lg text-brand">
                   {b.checkIn} → {b.checkOut} · {b.nights} netter
@@ -145,13 +145,17 @@ export default function BookingsTable({
                 {b.mainCharge.refundedAmount !== null && (
                   <p className="text-sm text-muted">Refundert {formatEur(b.mainCharge.refundedAmount)}</p>
                 )}
+                {b.status === "declined" && b.declineReason && (
+                  <p className="mt-2 text-sm text-foreground">Begrunnelse: «{b.declineReason}»</p>
+                )}
                 {b.guestEmails.cancellationSentAt && (
                   <p className="text-sm text-muted">
-                    Avbestillings-e-post sendt til gjesten {b.guestEmails.cancellationSentAt.slice(0, 10)}
+                    E-post om {statusLabel(b).toLowerCase()} booking sendt til gjesten{" "}
+                    {b.guestEmails.cancellationSentAt.slice(0, 10)}
                   </p>
                 )}
                 {b.cancellationRequest && b.status !== "declined" && (
-                  <p className="mt-2 rounded-lg bg-yellow-100 px-3 py-2 text-sm text-yellow-800">
+                  <p className="mt-2 rounded-lg bg-orange-100 px-3 py-2 text-sm text-orange-800">
                     Gjesten ba om avbestilling {b.cancellationRequest.requestedAt.slice(0, 10)}
                     {b.cancellationRequest.message && <>: «{b.cancellationRequest.message}»</>}
                   </p>
@@ -168,10 +172,7 @@ export default function BookingsTable({
                     >
                       Bekreft
                     </ActionButton>
-                    <ActionButton
-                      onClick={() => updateStatus(b.id, "declined")}
-                      disabled={busyId === b.id}
-                    >
+                    <ActionButton onClick={() => setPendingCancel({ id: b.id })} disabled={busyId === b.id}>
                       Avslå
                     </ActionButton>
                   </>
@@ -199,14 +200,14 @@ export default function BookingsTable({
               </div>
             </div>
 
-            {pendingCancel?.id === b.id && b.status === "confirmed" && (
+            {pendingCancel?.id === b.id && b.status !== "declined" && (
               <CancelConfirm
                 booking={b}
                 refund={pendingCancel.refund}
                 guestEmailEnabled={guestEmailEnabled}
                 busy={busyId === b.id}
-                onConfirm={(notifyGuest) =>
-                  updateStatus(b.id, "declined", { refund: pendingCancel.refund, notifyGuest })
+                onConfirm={(notifyGuest, reason) =>
+                  updateStatus(b.id, "declined", { refund: pendingCancel.refund, notifyGuest, reason })
                 }
                 onCancel={() => setPendingCancel(null)}
               />
@@ -252,8 +253,9 @@ function CancelPaidButtons({
 }
 
 /**
- * Bekreftelse før en bekreftet booking avbestilles – erstatter confirm() så
- * eieren kan velge om gjesten skal få avbestillings-e-post (standard: ja).
+ * Bekreftelse før en forespørsel avslås eller en bekreftet booking avbestilles –
+ * erstatter confirm(). Tar eieren initiativet, kreves en begrunnelse (vises
+ * også for gjesten). Eieren velger om gjesten skal få e-post (standard: ja).
  */
 function CancelConfirm({
   booking,
@@ -267,21 +269,53 @@ function CancelConfirm({
   refund?: "policy" | "full";
   guestEmailEnabled: boolean;
   busy: boolean;
-  onConfirm: (notifyGuest: boolean) => void;
+  onConfirm: (notifyGuest: boolean, reason: string) => void;
   onCancel: () => void;
 }) {
   const canEmail = guestEmailEnabled && Boolean(booking.email);
   const [notifyGuest, setNotifyGuest] = useState(canEmail);
-  const summary =
-    refund === "policy"
+  const [reason, setReason] = useState("");
+  const isRequest = booking.status === "pending";
+  // Samme regel som declineInitiator i lib/bookings.ts – serveren sjekker den igjen.
+  const byOwner = !booking.cancellationRequest && refund !== "policy";
+  const reasonId = `decline-reason-${booking.id}`;
+
+  const summary = isRequest
+    ? "Avslå forespørselen? Ingenting er belastet."
+    : refund === "policy"
       ? `Gjesten avbestiller. ${formatEur(policyRefundAmount(booking.pricing.total, booking.checkIn, today()))} refunderes etter leievilkårene.`
       : refund === "full"
         ? `Vi avlyser. Hele beløpet (${formatEur(booking.pricing.total)}) refunderes.`
-        : "Avbestille bookingen? Ingenting er trukket ennå.";
+        : booking.cancellationRequest
+          ? "Avbestille bookingen slik gjesten ba om? Ingenting er trukket ennå."
+          : "Avbestille bookingen? Ingenting er trukket ennå.";
 
   return (
     <div className="mt-4 space-y-3 rounded-xl bg-red-50/60 p-4 text-sm ring-1 ring-red-200">
       <p className="font-medium text-foreground">{summary}</p>
+      {byOwner && (
+        <div className="space-y-1.5">
+          <label htmlFor={reasonId} className="block text-xs font-medium text-foreground">
+            Begrunnelse (vises for gjesten – skriv på engelsk hvis gjesten ikke leser norsk)
+          </label>
+          <textarea
+            id={reasonId}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={DECLINE_REASON_MAX}
+            rows={3}
+            placeholder={
+              isRequest
+                ? "F.eks. Another request for overlapping dates was confirmed first."
+                : "F.eks. We have water damage in the cabin and cannot host guests."
+            }
+            className="w-full rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+          />
+          <p className="text-right text-xs text-muted">
+            {reason.length}/{DECLINE_REASON_MAX}
+          </p>
+        </div>
+      )}
       <label className="flex items-start gap-2">
         <input
           type="checkbox"
@@ -291,7 +325,7 @@ function CancelConfirm({
           className="mt-0.5"
         />
         <span className={canEmail ? "text-foreground" : "text-muted"}>
-          Send e-post til gjesten om avbestillingen
+          Send e-post til gjesten om {isRequest && byOwner ? "avslaget" : "avbestillingen"}
           {!canEmail && (
             <span className="block text-xs">
               {booking.email ? "E-post til gjester er ikke satt opp (RESEND_FROM_EMAIL)." : "Bookingen har ingen e-postadresse."}
@@ -300,8 +334,12 @@ function CancelConfirm({
         </span>
       </label>
       <div className="flex flex-wrap gap-2">
-        <ActionButton onClick={() => onConfirm(notifyGuest)} disabled={busy} variant="danger">
-          {busy ? "Avbestiller …" : "Bekreft avbestilling"}
+        <ActionButton
+          onClick={() => onConfirm(notifyGuest, reason)}
+          disabled={busy || (byOwner && !reason.trim())}
+          variant="danger"
+        >
+          {busy ? "Lagrer …" : isRequest ? "Bekreft avslag" : "Bekreft avbestilling"}
         </ActionButton>
         <ActionButton onClick={onCancel} disabled={busy}>
           Avbryt

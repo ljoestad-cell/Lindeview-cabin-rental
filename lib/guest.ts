@@ -1,5 +1,6 @@
 import { FULL_REFUND_DAYS } from "@/lib/config";
 import { addDays } from "@/lib/dates";
+import { cancelledByGuest } from "@/lib/status";
 import type { Booking } from "@/lib/types";
 
 /**
@@ -31,8 +32,6 @@ export function canUpdateCard(booking: Booking): boolean {
 
 export function guestStatusLabel(booking: Booking): string {
   if (booking.status === "pending") return "Forespørsel mottatt";
-  if (booking.status === "declined") {
-    return booking.mainCharge.status === "paid" ? "Avbestilt" : "Avslått / avbestilt";
-  }
+  if (booking.status === "declined") return cancelledByGuest(booking) ? "Avbestilt" : "Avslått";
   return booking.mainCharge.status === "not_saved" ? "Bekreftet – venter på kort" : "Bekreftet";
 }

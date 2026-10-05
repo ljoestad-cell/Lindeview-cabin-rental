@@ -251,14 +251,21 @@ sende e-post:
    kortet via Stripe: kort registrert, booking bekreftet, og når beløpet
    trekkes — eller at det er trukket, ved sen booking. Sendes ikke hvis en
    umiddelbar belastning feiler (da varsles eieren i stedet).
-3. *Booking cancelled* — når du avbestiller en **bekreftet** booking i
-   `/admin`. Før avbestillingen bekreftes, vises en avkrysning «Send e-post
-   til gjesten» (på som standard) – skru den av hvis du allerede har snakket
-   med gjesten. Åpningen tilpasses: «som du ba om» (gjesten ba om det på «Min
-   booking», eller «Gjesten avbestiller»), «vi må dessverre avlyse» («Vi
-   avlyser»), ellers nøytral. E-posten sier hva som faktisk er refundert,
-   eller at ingenting er trukket. Avslag av nye forespørsler sender ingen
-   e-post.
+3. *Booking cancelled* — når du avbestiller en **bekreftet** booking, og
+   *Booking request not confirmed* — når du **avslår en ny forespørsel**. Før
+   du bekrefter, vises en avkrysning «Send e-post til gjesten» (på som
+   standard) – skru den av hvis du allerede har snakket med gjesten.
+   Avbestillings-e-posten åpner med «som du ba om» når gjesten tok
+   initiativet, ellers «vi må dessverre avlyse», og sier hva som faktisk er
+   refundert, eller at ingenting er trukket.
+
+**Avslått eller avbestilt:** Tar du selv initiativet («Avslå» på en
+forespørsel, «Avbestill» eller «Vi avlyser»), må du skrive en begrunnelse
+(maks 200 tegn). Den står i e-posten til gjesten og på «Min booking», så
+skriv den på engelsk hvis gjesten ikke leser norsk. Bookingen vises da som
+**«Avslått»**. Har gjesten bedt om avbestilling (på «Min booking», eller du
+velger «Gjesten avbestiller»), trengs ingen begrunnelse, og bookingen vises
+som **«Avbestilt»**. Begrunnelsen er også med i CSV-eksporten.
 
 Har lenken utløpt: trykk «Generer ny lenke» og deretter **«Send e-post til
 gjest»** i betalingspanelet — ny lenke sender ikke e-post av seg selv. Admin

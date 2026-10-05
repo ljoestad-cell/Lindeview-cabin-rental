@@ -2,6 +2,7 @@ import { CHARGE_DAYS_BEFORE_CHECKIN, DEPOSIT_HOLD_DAYS, FULL_REFUND_DAYS } from 
 import { addDays, fromIso, today } from "@/lib/dates";
 import { OWNER_EMAIL, OWNER_NAME, OWNER_PHONE_DISPLAY, PROPERTY_NAME } from "@/lib/property";
 import { guestBookingUrl, siteUrl } from "@/lib/site";
+import { cancelledByGuest } from "@/lib/status";
 import type { Booking } from "@/lib/types";
 
 /**
@@ -407,21 +408,22 @@ export function buildConfirmationEmail(booking: Booking): GuestEmail {
   };
 }
 
-/**
- * Hvem avbestillingen kom fra – styrer åpningen av e-posten. "neutral" når
- * admin avbestiller en ubetalt booking uten at gjesten har bedt om det (f.eks.
- * etter en telefonsamtale).
- */
-export type CancellationInitiator = "guest" | "owner" | "neutral";
+/** Eierens begrunnelse som eget avsnitt – tom når gjesten selv tok initiativet eller ingen er skrevet. */
+function reasonLines(booking: Booking): string[] {
+  if (cancelledByGuest(booking) || !booking.declineReason) return [];
+  return [`Reason: ${booking.declineReason}`];
+}
 
-/** E-post 3: en bekreftet booking er avbestilt. Ren funksjon – tar bookingen slik den er etter refusjonen. */
-export function buildCancellationEmail(booking: Booking, initiator: CancellationInitiator): GuestEmail {
+/**
+ * E-post 3a: en bekreftet booking er avbestilt. Ren funksjon – tar bookingen
+ * slik den er etter refusjonen. Åpningen følger hvem som tok initiativet.
+ */
+export function buildCancellationEmail(booking: Booking): GuestEmail {
   const total = formatAmount(booking.pricing.total);
-  const opening = {
-    guest: `As you requested, your booking at ${PROPERTY_NAME} has been cancelled.`,
-    owner: `Unfortunately we have had to cancel your booking at ${PROPERTY_NAME}. We are very sorry for the inconvenience.`,
-    neutral: `Your booking at ${PROPERTY_NAME} has been cancelled.`,
-  }[initiator];
+  const byGuest = cancelledByGuest(booking);
+  const opening = byGuest
+    ? `As you requested, your booking at ${PROPERTY_NAME} has been cancelled.`
+    : `Unfortunately we have had to cancel your booking at ${PROPERTY_NAME}.`;
 
   const refunded = booking.mainCharge.refundedAmount;
   let payment: string;
@@ -442,7 +444,14 @@ export function buildCancellationEmail(booking: Booking, initiator: Cancellation
   }
   const termsUrl = `${siteUrl()}/vilkar`;
 
-  const intro = [`Hi ${booking.name},`, ``, opening];
+  const reason = reasonLines(booking);
+  const intro = [
+    `Hi ${booking.name},`,
+    ``,
+    opening,
+    ...(reason.length ? [``, ...reason] : []),
+    ...(byGuest ? [] : [``, `We are very sorry for the inconvenience.`]),
+  ];
   const closing = [`We hope to welcome you another time.`];
 
   const text = [
@@ -474,9 +483,51 @@ export function buildCancellationEmail(booking: Booking, initiator: Cancellation
   };
 }
 
+/** E-post 3b: eieren har avslått en ny forespørsel. Ingenting er belastet – det ble aldri lagret noe kort. */
+export function buildDeclinedRequestEmail(booking: Booking): GuestEmail {
+  const bookUrl = `${siteUrl()}/book`;
+  const intro = [
+    `Hi ${booking.name},`,
+    ``,
+    `Thank you for your interest in ${PROPERTY_NAME}. Unfortunately we are not able to confirm your booking request for these dates.`,
+    ...(reasonLines(booking).length ? [``, ...reasonLines(booking)] : []),
+  ];
+  const after = [`Nothing has been charged.`, ``, `You are very welcome to send a new request for other dates.`];
+
+  const text = [
+    ...intro,
+    ``,
+    ...textTable(stayLines(booking)),
+    ``,
+    ...after,
+    `Check availability: ${bookUrl}`,
+    ``,
+    ...signatureLines(),
+  ].join("\n");
+
+  const html = htmlDocument(
+    htmlParagraphs(intro) +
+      htmlTable(stayLines(booking)) +
+      htmlParagraphs(after) +
+      `<p style="margin:0 0 12px;"><a href="${escapeHtml(bookUrl)}" style="color:#26362a;">Check availability</a></p>` +
+      htmlParagraphs(signatureLines()),
+  );
+
+  return {
+    subject: `Booking request not confirmed – ${PROPERTY_NAME}, ${formatDate(booking.checkIn)} – ${formatDate(booking.checkOut)}`,
+    text,
+    html,
+  };
+}
+
 /** Kaster ved feil fra Resend. Returnerer false hvis gjeste-e-post ikke er satt opp. */
-export async function notifyGuestOfCancellation(booking: Booking, initiator: CancellationInitiator): Promise<boolean> {
-  return sendGuestEmail(booking, buildCancellationEmail(booking, initiator));
+export async function notifyGuestOfDeclinedRequest(booking: Booking): Promise<boolean> {
+  return sendGuestEmail(booking, buildDeclinedRequestEmail(booking));
+}
+
+/** Kaster ved feil fra Resend. Returnerer false hvis gjeste-e-post ikke er satt opp. */
+export async function notifyGuestOfCancellation(booking: Booking): Promise<boolean> {
+  return sendGuestEmail(booking, buildCancellationEmail(booking));
 }
 
 /** Kaster ved feil fra Resend. Returnerer false hvis gjeste-e-post ikke er satt opp. */

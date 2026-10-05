@@ -82,7 +82,7 @@ export type GuestEmails = {
   approvalSentAt: string | null;
   /** Kort sikret, booking bekreftet – sendes bare én gang. */
   confirmationSentAt: string | null;
-  /** Bekreftet booking avbestilt – sendes bare én gang, og bare hvis eieren lot avkrysningen stå. */
+  /** Forespørsel avslått eller bekreftet booking avbestilt – sendes bare én gang, og bare hvis eieren lot avkrysningen stå. */
   cancellationSentAt: string | null;
 };
 
@@ -131,6 +131,10 @@ export type Booking = {
   /** Ugjettbar nøkkel i gjestens «Min booking»-lenke (/booking/<token>). null på eldre bookinger til den lages, og etter anonymisering. */
   guestToken: string | null;
   cancellationRequest: CancellationRequest | null;
+  /** Hvem som avsluttet en avslått booking – "guest" vises som «Avbestilt», "owner" som «Avslått». null på eldre data (se lib/status.ts). */
+  cancelledBy: "guest" | "owner" | null;
+  /** Eierens begrunnelse når eieren selv avslår eller avbestiller (maks DECLINE_REASON_MAX tegn) – vises også for gjesten. */
+  declineReason: string | null;
 
   /** TERMS_VERSION gjesten krysset av for på /book – null på bookinger fra før vilkårene fantes. */
   termsVersion: string | null;

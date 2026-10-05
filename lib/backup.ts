@@ -1,7 +1,7 @@
 import { getStore } from "@/lib/store";
-import type { Booking, BookingStatus, DepositStatus, MainChargeStatus } from "@/lib/types";
+import { statusLabel } from "@/lib/status";
+import type { Booking, DepositStatus, MainChargeStatus } from "@/lib/types";
 
-const STATUS_LABEL: Record<BookingStatus, string> = { pending: "Venter", confirmed: "Bekreftet", declined: "Avslått" };
 const CHARGE_LABEL: Record<MainChargeStatus, string> = {
   not_saved: "Kort ikke sikret",
   card_saved: "Kort sikret",
@@ -50,7 +50,7 @@ export async function buildBackup() {
 }
 
 const CSV_COLUMNS: [string, (b: Booking) => string | number | null][] = [
-  ["Status", (b) => STATUS_LABEL[b.status] ?? b.status],
+  ["Status", (b) => statusLabel(b)],
   ["Innsjekk", (b) => b.checkIn],
   ["Utsjekk", (b) => b.checkOut],
   ["Netter", (b) => b.nights],
@@ -71,6 +71,7 @@ const CSV_COLUMNS: [string, (b: Booking) => string | number | null][] = [
   ["Depositum", (b) => (b.deposit ? DEPOSIT_LABEL[b.deposit.status] : null)],
   ["Trukket depositum (EUR)", (b) => b.deposit?.capturedAmount ?? null],
   ["Begrunnelse for trekk", (b) => b.deposit?.captureReason ?? null],
+  ["Begrunnelse for avslag/avbestilling", (b) => b.declineReason ?? null],
   ["Tilleggsbeløp (EUR)", (b) =>
     (b.extraCharges ?? []).filter((c) => c.status === "succeeded").reduce((sum, c) => sum + c.amount, 0)],
   ["Opprettet", (b) => b.createdAt.slice(0, 10)],

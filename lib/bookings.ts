@@ -4,6 +4,7 @@ import * as calendar from "@/lib/calendar";
 import {
   BEDDING_MAX,
   CHARGE_DAYS_BEFORE_CHECKIN,
+  DECLINE_REASON_MAX,
   DEPOSIT_AMOUNT,
   DEPOSIT_RESERVE_DAYS_BEFORE_CHECKOUT,
   EV_CHARGER_MAX,
@@ -25,12 +26,12 @@ import {
   guestEmailEnabled,
   notifyGuestOfApproval,
   notifyGuestOfCancellation,
+  notifyGuestOfDeclinedRequest,
   notifyGuestOfConfirmation,
   notifyOwnerOfBooking,
   notifyOwnerOfCancellationRequest,
   notifyOwnerOfDoubleBooking,
   notifyOwnerOfPaymentIssue,
-  type CancellationInitiator,
 } from "@/lib/notifications";
 import * as payments from "@/lib/payments";
 import { isStripeConfigured } from "@/lib/stripe";
@@ -77,6 +78,8 @@ function normalizeBooking(booking: Booking): Booking {
     guestEmails: { ...DEFAULT_GUEST_EMAILS, ...booking.guestEmails },
     guestToken: booking.guestToken ?? null,
     cancellationRequest: booking.cancellationRequest ?? null,
+    cancelledBy: booking.cancelledBy ?? null,
+    declineReason: booking.declineReason ?? null,
     extras: booking.extras ?? { ...DEFAULT_EXTRAS },
     termsVersion: booking.termsVersion ?? null,
     termsAcceptedAt: booking.termsAcceptedAt ?? null,
@@ -175,6 +178,8 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
     guestEmails: { ...DEFAULT_GUEST_EMAILS },
     guestToken: randomUUID(),
     cancellationRequest: null,
+    cancelledBy: null,
+    declineReason: null,
     termsVersion: TERMS_VERSION,
     termsAcceptedAt: new Date().toISOString(),
     anonymizedAt: null,
@@ -340,8 +345,10 @@ export type RefundMode = "policy" | "full";
 export type SetStatusOptions = {
   /** Bare for betalte bookinger. Uten verdi refunderes alt (samme som "full"). */
   refundMode?: RefundMode;
-  /** Send avbestillings-e-post til gjesten når en bekreftet booking avbestilles. */
+  /** Send e-post til gjesten når en forespørsel avslås eller en bekreftet booking avbestilles. */
   notifyGuest?: boolean;
+  /** Eierens begrunnelse – påkrevd når eieren selv avslår/avbestiller (se declineInitiator). */
+  reason?: string;
 };
 
 /**
@@ -352,11 +359,25 @@ export type SetStatusOptions = {
 export async function setStatus(
   id: string,
   status: BookingStatus,
-  { refundMode, notifyGuest = false }: SetStatusOptions = {},
+  { refundMode, notifyGuest = false, reason }: SetStatusOptions = {},
 ): Promise<Booking | null> {
   const store = getStore();
   const before = await loadBooking(id);
   if (!before) return null;
+
+  // Avslag/avbestilling: hvem tok initiativet, og eierens begrunnelse når det var eieren.
+  let declinePatch: Pick<Booking, "cancelledBy" | "declineReason"> | null = null;
+  if (status === "declined") {
+    const cancelledBy = declineInitiator(before, refundMode);
+    const declineReason = cancelledBy === "owner" ? (reason ?? "").trim() : "";
+    if (cancelledBy === "owner" && !declineReason) {
+      throw new BookingValidationError("Skriv en begrunnelse for avslaget/avbestillingen.");
+    }
+    if (declineReason.length > DECLINE_REASON_MAX) {
+      throw new BookingValidationError(`Begrunnelsen kan være maks ${DECLINE_REASON_MAX} tegn.`);
+    }
+    declinePatch = { cancelledBy, declineReason: declineReason || null };
+  }
 
   if (status === "confirmed") {
     const [bookings, blockedRanges] = await Promise.all([loadAllBookings(), store.listBlockedRanges()]);
@@ -364,8 +385,8 @@ export async function setStatus(
     if (conflict) throw new BookingValidationError(CONFLICT_MESSAGES[conflict]);
   }
 
-  await store.updateBooking(id, { status });
-  let updated = { ...before, status };
+  await store.updateBooking(id, { status, ...declinePatch });
+  let updated = { ...before, status, ...declinePatch };
 
   try {
     if (status === "declined") {
@@ -430,29 +451,33 @@ export async function setStatus(
   }
 
   // Etter refusjonen, så e-posten oppgir det som faktisk er refundert.
-  if (status === "declined" && before.status === "confirmed" && notifyGuest) {
-    updated = await sendCancellationEmail(updated, cancellationInitiator(updated, refundMode));
+  if (status === "declined" && before.status !== "declined" && notifyGuest) {
+    updated = await sendDeclineEmail(updated, before.status === "pending" ? "request" : "booking");
   }
 
   return updated;
 }
 
 /**
- * Hvem avbestillingen kom fra: gjesten hvis de ba om det på «Min booking»
- * eller eieren valgte «Gjesten avbestiller»; eieren ved «Vi avlyser»; ellers
- * nøytralt (ubetalt booking avbestilt i admin).
+ * Hvem som tok initiativet til et avslag/en avbestilling: gjesten hvis de ba
+ * om det på «Min booking» eller eieren valgte «Gjesten avbestiller» – ellers
+ * eieren (avslag av forespørsel, «Avbestill», «Vi avlyser»).
  */
-function cancellationInitiator(booking: Booking, refundMode: RefundMode | undefined): CancellationInitiator {
-  if (booking.cancellationRequest || refundMode === "policy") return "guest";
-  if (refundMode === "full") return "owner";
-  return "neutral";
+export function declineInitiator(booking: Booking, refundMode: RefundMode | undefined): "guest" | "owner" {
+  return booking.cancellationRequest || refundMode === "policy" ? "guest" : "owner";
 }
 
-/** E-post 3: avbestilling. Sendes bare én gang; feil logges og stopper ikke avbestillingen. */
-async function sendCancellationEmail(booking: Booking, initiator: CancellationInitiator): Promise<Booking> {
+/**
+ * E-post 3: avslått forespørsel («request», bare når eieren avslår) eller
+ * avbestilt booking. Sendes bare én gang; feil logges og stopper ikke avslaget.
+ */
+async function sendDeclineEmail(booking: Booking, kind: "request" | "booking"): Promise<Booking> {
   if (booking.guestEmails.cancellationSentAt) return booking;
   try {
-    const sent = await notifyGuestOfCancellation(booking, initiator);
+    const sent =
+      kind === "request" && booking.cancelledBy === "owner"
+        ? await notifyGuestOfDeclinedRequest(booking)
+        : await notifyGuestOfCancellation(booking);
     if (!sent) return booking;
     const guestEmails = { ...booking.guestEmails, cancellationSentAt: new Date().toISOString() };
     await getStore().updateBooking(booking.id, { guestEmails });
@@ -869,6 +894,7 @@ export async function anonymizeExpiredBookings(): Promise<string[]> {
       secureCardUrl: null,
       guestToken: null,
       cancellationRequest: null,
+      declineReason: null,
       anonymizedAt: new Date().toISOString(),
     });
     anonymized.push(b.id);

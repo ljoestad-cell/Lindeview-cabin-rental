@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildApprovalEmail,
   buildCancellationEmail,
+  buildDeclinedRequestEmail,
   buildConfirmationEmail,
   notifyGuestOfApproval,
   notifyGuestOfConfirmation,
@@ -85,35 +86,67 @@ describe("buildConfirmationEmail", () => {
 });
 
 describe("buildCancellationEmail", () => {
-  const paid = (refundedAmount: number | null) =>
-    makeBooking({ mainCharge: { status: "paid", refundedAmount } as Booking["mainCharge"] });
+  const byOwner = (overrides: Partial<Booking> = {}) =>
+    makeBooking({ status: "declined", cancelledBy: "owner", declineReason: "Water damage in the cabin", ...overrides });
+  const byGuest = (overrides: Partial<Booking> = {}) =>
+    makeBooking({ status: "declined", cancelledBy: "guest", declineReason: null, ...overrides });
+  const paid = (refundedAmount: number | null) => ({
+    mainCharge: { status: "paid", refundedAmount } as Booking["mainCharge"],
+  });
 
-  it("åpner ulikt etter hvem som avbestilte", () => {
-    expect(buildCancellationEmail(makeBooking(), "guest").text).toContain("As you requested, your booking");
-    expect(buildCancellationEmail(makeBooking(), "owner").text).toContain("Unfortunately we have had to cancel");
-    expect(buildCancellationEmail(makeBooking(), "neutral").text).toContain("Your booking at Lindeview has been cancelled.");
+  it("åpner ulikt etter hvem som tok initiativet, og tar med eierens begrunnelse", () => {
+    expect(buildCancellationEmail(byGuest()).text).toContain("As you requested, your booking");
+    const owner = buildCancellationEmail(byOwner()).text;
+    expect(owner).toContain("Unfortunately we have had to cancel");
+    expect(owner).toContain("Reason: Water damage in the cabin");
+    expect(owner).toContain("We are very sorry for the inconvenience.");
+  });
+
+  it("viser aldri begrunnelse når gjesten selv avbestilte", () => {
+    expect(buildCancellationEmail(byGuest({ declineReason: "intern" })).text).not.toContain("Reason:");
   });
 
   it("sier at ingenting er trukket når hovedbeløpet ikke er betalt", () => {
-    const { subject, text } = buildCancellationEmail(makeBooking(), "guest");
+    const { subject, text } = buildCancellationEmail(byGuest());
     expect(subject).toContain("Booking cancelled");
     expect(text).toContain("Nothing has been charged to your card");
   });
 
   it("oppgir full og delvis refusjon", () => {
-    expect(buildCancellationEmail(paid(2550), "owner").text).toContain("We have refunded €2,550.00 to your card");
-    const partial = buildCancellationEmail(paid(1000), "guest").text;
+    expect(buildCancellationEmail(byOwner(paid(2550))).text).toContain("We have refunded €2,550.00 to your card");
+    const partial = buildCancellationEmail(byGuest(paid(1000))).text;
     expect(partial).toContain("We have refunded €1,000.00");
     expect(partial).toContain("remainder of your payment of €2,550.00 is non-refundable");
   });
 
   it("forklarer vilkårene når ingenting refunderes, og lover ikke refusjon som feilet", () => {
-    expect(buildCancellationEmail(paid(0), "guest").text).toContain("non-refundable for cancellations made less than 30 days");
-    expect(buildCancellationEmail(paid(null), "owner").text).toContain("We will be in touch about the refund");
+    expect(buildCancellationEmail(byGuest(paid(0))).text).toContain("non-refundable for cancellations made less than 30 days");
+    expect(buildCancellationEmail(byOwner(paid(null))).text).toContain("We will be in touch about the refund");
   });
 
-  it("escaper HTML i gjestens navn", () => {
-    expect(buildCancellationEmail(makeBooking(), "guest").html).toContain("Anna &lt;b&gt;Smith&lt;/b&gt;");
+  it("escaper HTML i navn og begrunnelse", () => {
+    const { html } = buildCancellationEmail(byOwner({ declineReason: "<script>x</script>" }));
+    expect(html).toContain("Anna &lt;b&gt;Smith&lt;/b&gt;");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<script>");
+  });
+});
+
+describe("buildDeclinedRequestEmail", () => {
+  it("sier at forespørselen ikke kan bekreftes, med begrunnelse og lenke til ny forespørsel", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://lindeview.no");
+    const booking = makeBooking({
+      status: "declined",
+      cancelledBy: "owner",
+      declineReason: "Another request for overlapping dates was confirmed first",
+    });
+    const { subject, text, html } = buildDeclinedRequestEmail(booking);
+    expect(subject).toContain("Booking request not confirmed");
+    expect(text).toContain("Unfortunately we are not able to confirm your booking request");
+    expect(text).toContain("Reason: Another request for overlapping dates was confirmed first");
+    expect(text).toContain("Nothing has been charged.");
+    expect(html).toContain('href="https://lindeview.no/book"');
+    vi.unstubAllEnvs();
   });
 });
 

@@ -28,6 +28,8 @@ export const DEPOSIT_HOLD_DAYS = 5;
 export const DEPOSIT_CAPTURE_REASON_MAX = 200;
 /** Maks lengde på begrunnelsen eieren skriver når et trukket beløp refunderes. */
 export const REFUND_REASON_MAX = DEPOSIT_CAPTURE_REASON_MAX;
+/** Maks lengde på begrunnelsen eieren skriver når eieren selv avslår eller avbestiller en booking. */
+export const DECLINE_REASON_MAX = 200;
 /** Maks lengde på meldingen gjesten kan legge ved når de ber om avbestilling. */
 export const CANCELLATION_MESSAGE_MAX = 500;
 /**
