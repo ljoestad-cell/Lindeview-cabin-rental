@@ -48,11 +48,12 @@ export const CHARGE_DAYS_BEFORE_CHECKIN = 29;
 export const PREPAYMENT_SHARE = 0.25;
 
 /**
- * Beholdes av forskuddet når gjesten avbestiller innen fristen for gratis
- * avbestilling – dekker blant annet Stripe-gebyret. Eieren som avlyser
- * refunderer alltid alt.
+ * Andelen av det gjesten har betalt som holdes tilbake når de avbestiller
+ * innen fristen (FULL_REFUND_DAYS) – dekker blant annet Stripe-gebyret, som
+ * også er prosentbasert. Gjesten får resten (96 %) tilbake. Eieren som
+ * avlyser refunderer alltid alt. Se cancellationFee i lib/cancellation.ts.
  */
-export const EARLY_CANCELLATION_FEE = 50;
+export const CANCELLATION_FEE_SHARE = 0.04;
 
 /** Kalenderen er åpen fra og med denne datoen (innsjekk). */
 export const SEASON_START = "2027-05-01";
@@ -77,15 +78,15 @@ export const BEDDING_MAX = 10;
 
 /**
  * Avbestilling fra gjesten (se lib/cancellation.ts og /vilkar):
- * - minst FULL_REFUND_DAYS dager før innsjekk: forskuddet refunderes minus
- *   EARLY_CANCELLATION_FEE (resten er normalt ikke trukket ennå)
+ * - minst FULL_REFUND_DAYS dager før innsjekk: det som er betalt refunderes
+ *   minus CANCELLATION_FEE_SHARE (normalt bare forskuddet – resten er ikke trukket ennå)
  * - senere: ingen refusjon
  * Resten trekkes dagen etter at fristen er ute (CHARGE_DAYS_BEFORE_CHECKIN).
  */
 export const FULL_REFUND_DAYS = CHARGE_DAYS_BEFORE_CHECKIN + 1;
 
 /** Øk (ny dato) når leievilkårene på /vilkar endres – lagres på hver booking som «godtatt versjon». */
-export const TERMS_VERSION = "2026-10-05";
+export const TERMS_VERSION = "2026-10-08";
 
 /**
  * Personopplysninger (navn, e-post, telefon, melding) anonymiseres automatisk

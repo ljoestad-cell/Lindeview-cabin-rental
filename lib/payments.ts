@@ -1,6 +1,7 @@
 import Stripe from "stripe";
-import { CURRENCY } from "@/lib/config";
-import { today } from "@/lib/dates";
+import { earlyCancellationRefund } from "@/lib/cancellation";
+import { CANCELLATION_FEE_SHARE, CHARGE_DAYS_BEFORE_CHECKIN, CURRENCY, FULL_REFUND_DAYS } from "@/lib/config";
+import { addDays, fromIso, today } from "@/lib/dates";
 import { prepaymentAmount } from "@/lib/pricing";
 import { guestBookingUrl, siteUrl } from "@/lib/site";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
@@ -70,6 +71,7 @@ async function createPaymentSession(
   amount: number,
   kind: CheckoutKind,
   productName: string,
+  submitMessage?: string,
 ): Promise<string> {
   const session = await getStripe().checkout.sessions.create({
     mode: "payment",
@@ -90,12 +92,35 @@ async function createPaymentSession(
       metadata: { bookingId: booking.id, kind },
     },
     payment_method_options: { card: { request_three_d_secure: "any" } },
+    ...(submitMessage ? { custom_text: { submit: { message: submitMessage } } } : {}),
     success_url: successUrl(booking, kind),
     cancel_url: cancelUrl(booking),
     metadata: { bookingId: booking.id, kind },
   });
   if (!session.url) throw new Error("Stripe returnerte ingen URL for Checkout-økten.");
   return session.url;
+}
+
+const checkoutDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const checkoutAmount = new Intl.NumberFormat("en-IE", { style: "currency", currency: CURRENCY });
+
+/**
+ * Vises over betalingsknappen i Checkout: hva som trekkes senere, og hva
+ * gjesten får tilbake ved avbestilling – samme tall som i e-postene.
+ */
+export function prepaymentCheckoutMessage(booking: Booking, amount: number): string {
+  const rest = booking.pricing.total - amount;
+  if (rest <= 0) {
+    return `Check-in is less than ${FULL_REFUND_DAYS} days away, so this payment is non-refundable.`;
+  }
+  const feePct = Math.round(CANCELLATION_FEE_SHARE * 100);
+  const chargeAt = checkoutDate.format(fromIso(addDays(booking.checkIn, -CHARGE_DAYS_BEFORE_CHECKIN)));
+  const deadline = checkoutDate.format(fromIso(addDays(booking.checkIn, -FULL_REFUND_DAYS)));
+  return (
+    `The remaining ${checkoutAmount.format(rest)} is charged automatically to this card on ${chargeAt}. ` +
+    `Cancel by ${deadline} and get ${100 - feePct}% (${checkoutAmount.format(earlyCancellationRefund(amount))}) ` +
+    `of this payment refunded. After that, the booking is non-refundable.`
+  );
 }
 
 /**
@@ -121,7 +146,14 @@ export async function createSecureCardSession(
       amount < booking.pricing.total
         ? `Forskudd – ${booking.checkIn} til ${booking.checkOut}`
         : `Leie – ${booking.checkIn} til ${booking.checkOut}`;
-    const checkoutUrl = await createPaymentSession(booking, customerId, amount, "prepayment", name);
+    const checkoutUrl = await createPaymentSession(
+      booking,
+      customerId,
+      amount,
+      "prepayment",
+      name,
+      prepaymentCheckoutMessage(booking, amount),
+    );
     return { checkoutUrl, customerId };
   }
 

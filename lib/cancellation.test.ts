@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { policyRefund, policyRefundTotal, refundShare } from "@/lib/cancellation";
-import { EARLY_CANCELLATION_FEE, FULL_REFUND_DAYS } from "@/lib/config";
+import { cancellationFee, earlyCancellationRefund, policyRefund, policyRefundTotal, refundShare } from "@/lib/cancellation";
+import { CANCELLATION_FEE_SHARE, FULL_REFUND_DAYS } from "@/lib/config";
 import { addDays } from "@/lib/dates";
 import type { Booking } from "@/lib/types";
 
@@ -8,9 +8,9 @@ const checkIn = "2027-07-01";
 const daysBefore = (n: number) => addDays(checkIn, -n);
 
 describe("avbestillingsregler", () => {
-  it("full refusjon fra og med FULL_REFUND_DAYS dager før", () => {
-    expect(refundShare(checkIn, daysBefore(FULL_REFUND_DAYS))).toBe(1);
-    expect(refundShare(checkIn, daysBefore(90))).toBe(1);
+  it("refusjon minus gebyret fra og med FULL_REFUND_DAYS dager før", () => {
+    expect(refundShare(checkIn, daysBefore(FULL_REFUND_DAYS))).toBe(1 - CANCELLATION_FEE_SHARE);
+    expect(refundShare(checkIn, daysBefore(90))).toBe(1 - CANCELLATION_FEE_SHARE);
   });
 
   it("ingen refusjon nærmere enn FULL_REFUND_DAYS, også etter innsjekk", () => {
@@ -33,21 +33,21 @@ function booking(overrides: Partial<Booking> = {}): Booking {
 }
 
 describe("policyRefund", () => {
-  it("tidlig avbestilling: forskuddet minus gebyret", () => {
-    expect(policyRefund(booking(), daysBefore(FULL_REFUND_DAYS))).toEqual({
-      prepayment: Math.round((586.39 - EARLY_CANCELLATION_FEE) * 100) / 100,
-      main: 0,
-    });
+  it("tidlig avbestilling: 96 % av forskuddet", () => {
+    // 4 % av 586,39 = 23,4556 → 23,46
+    expect(policyRefund(booking(), daysBefore(FULL_REFUND_DAYS))).toEqual({ prepayment: 562.93, main: 0 });
   });
 
-  it("tidlig avbestilling etter at resten er trukket manuelt: resten refunderes også", () => {
+  it("5 000 € booking: 1 250 € forskudd, 1 200 € tilbake", () => {
+    expect(cancellationFee(1250)).toBe(50);
+    expect(earlyCancellationRefund(1250)).toBe(1200);
+  });
+
+  it("tidlig avbestilling etter at resten er trukket manuelt: 96 % av alt, og summen stemmer på centen", () => {
     const b = booking({ mainCharge: { status: "paid", amount: 1759.16 } as Booking["mainCharge"] });
-    expect(policyRefundTotal(b, daysBefore(60))).toBe(Math.round((2345.55 - EARLY_CANCELLATION_FEE) * 100) / 100);
-  });
-
-  it("gebyret gjør aldri refusjonen negativ", () => {
-    const b = booking({ prepayment: { status: "paid", amount: 30 } as Booking["prepayment"] });
-    expect(policyRefund(b, daysBefore(60)).prepayment).toBe(0);
+    const refund = policyRefund(b, daysBefore(60));
+    expect(refund.main).toBe(earlyCancellationRefund(1759.16));
+    expect(policyRefundTotal(b, daysBefore(60))).toBe(earlyCancellationRefund(2345.55));
   });
 
   it("eldre booking uten forskudd: hele leien, uten gebyr", () => {

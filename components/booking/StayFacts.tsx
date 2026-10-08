@@ -1,4 +1,4 @@
-import { FULL_REFUND_DAYS, MIN_NIGHTS, SEASON_LABEL } from "@/lib/config";
+import { CANCELLATION_FEE_SHARE, FULL_REFUND_DAYS, MIN_NIGHTS, SEASON_LABEL } from "@/lib/config";
 import { formatEur, type Prices } from "@/lib/pricing";
 
 export default function StayFacts({ prices }: { prices: Prices }) {
@@ -8,7 +8,10 @@ export default function StayFacts({ prices }: { prices: Prices }) {
     { label: "Rengjøringsgebyr", value: formatEur(prices.cleaningFee) },
     { label: "Fiskekort", value: "Inkludert" },
     { label: "Kajakk – 2 stk.", value: "Inkludert" },
-    { label: "Gratis avbestilling", value: `Inntil ${FULL_REFUND_DAYS} dager før innsjekk` },
+    {
+      label: "Avbestilling",
+      value: `Frem til ${FULL_REFUND_DAYS} dager før innsjekk, med fratrekk av ${Math.round(CANCELLATION_FEE_SHARE * 100)} % av beløpet`,
+    },
     { label: "Sesong", value: SEASON_LABEL },
   ];
 

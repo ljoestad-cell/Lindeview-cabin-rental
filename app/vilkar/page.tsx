@@ -4,14 +4,13 @@ import LegalPage, { LegalSection } from "@/components/LegalPage";
 import {
   CHARGE_DAYS_BEFORE_CHECKIN,
   DEPOSIT_HOLD_DAYS,
-  EARLY_CANCELLATION_FEE,
+  CANCELLATION_FEE_SHARE,
   FULL_REFUND_DAYS,
   MAX_GUESTS,
   MIN_NIGHTS,
   PREPAYMENT_SHARE,
   TERMS_VERSION,
 } from "@/lib/config";
-import { formatEur } from "@/lib/pricing";
 import { CONTACT_EMAIL, LOCATION_LABEL, OWNER_NAME, OWNER_PHONE_DISPLAY, PROPERTY_NAME } from "@/lib/property";
 
 export const metadata: Metadata = {
@@ -86,9 +85,10 @@ export default function TermsPage() {
         <p>Avbestill ved å kontakte oss på e-post eller telefon. Refusjonen avhenger av når vi får beskjed:</p>
         <ul>
           <li>
-            <strong>Minst {FULL_REFUND_DAYS} dager før innsjekk:</strong> du får tilbake det du har betalt, minus et
-            avbestillingsgebyr på {formatEur(EARLY_CANCELLATION_FEE)} som trekkes fra forskuddet. Resten er normalt
-            ikke trukket ennå.
+            <strong>Minst {FULL_REFUND_DAYS} dager før innsjekk:</strong> du får tilbake{" "}
+            {Math.round((1 - CANCELLATION_FEE_SHARE) * 100)} % av det du har betalt. Vi holder tilbake et
+            avbestillingsgebyr på {Math.round(CANCELLATION_FEE_SHARE * 100)} %. Normalt er bare forskuddet betalt da –
+            resten trekkes ikke.
           </li>
           <li>
             <strong>Mindre enn {FULL_REFUND_DAYS} dager før innsjekk:</strong> ingen refusjon av leien.

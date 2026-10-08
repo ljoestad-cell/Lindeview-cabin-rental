@@ -1,4 +1,6 @@
+import { cancellationFee, earlyCancellationRefund } from "@/lib/cancellation";
 import {
+  CANCELLATION_FEE_SHARE,
   CHARGE_DAYS_BEFORE_CHECKIN,
   DEPOSIT_HOLD_DAYS,
   FULL_REFUND_DAYS,
@@ -253,6 +255,25 @@ function depositSentence(booking: Booking): string {
   );
 }
 
+/**
+ * Avbestillingsvilkårene med utregnede beløp for det gjesten har betalt (eller
+ * betaler nå): innen fristen refunderes alt minus CANCELLATION_FEE_SHARE –
+ * samme tall som refusjonen i lib/cancellation.ts.
+ */
+function cancellationSentence(booking: Booking, paid: number, paidLabel: string, now: string): string {
+  const deadline = addDays(booking.checkIn, -FULL_REFUND_DAYS);
+  if (deadline < now) {
+    return `Cancellation: since check-in is less than ${FULL_REFUND_DAYS} days away, the booking is non-refundable.`;
+  }
+  const feePct = Math.round(CANCELLATION_FEE_SHARE * 100);
+  return (
+    `Cancellation: you can cancel until ${formatDate(deadline)} (${FULL_REFUND_DAYS} days before check-in) and get ` +
+    `${100 - feePct}% of what you have paid refunded – ${formatAmount(earlyCancellationRefund(paid))} of ${paidLabel} ` +
+    `${formatAmount(paid)} (a ${feePct}% cancellation fee of ${formatAmount(cancellationFee(paid))} is retained). ` +
+    `Cancellations after that are non-refundable.`
+  );
+}
+
 /** Lenke til gjestens «Min booking»-side – tom hvis bookingen ikke har token. */
 function manageBookingLink(booking: Booking): { text: string[]; html: string } {
   if (!booking.guestToken) return { text: [], html: "" };
@@ -328,10 +349,13 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
     ``,
     `To complete the booking, please pay and secure your card using the link below. Your bank will ask you to approve the payment (3D Secure). The link is valid for 24 hours – if it expires, you can get a new one from your booking page, or just reply to this email.`,
   ];
+  const cancellation = cancellationSentence(booking, prepay, prepay >= booking.pricing.total ? "your payment of" : "your prepayment of", now);
   const plan = [
     `How payment works`,
     chargeSentence,
     depositSentence(booking),
+    ``,
+    cancellation,
     ``,
     `You will receive a final confirmation as soon as your payment has been received.`,
     ``,
@@ -364,7 +388,7 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
       htmlTable(stayLines(booking)) +
       htmlTable(prices, { boldLast: true, alignRight: true }) +
       `<p style="margin:16px 0 6px;font-weight:600;">How payment works</p>` +
-      htmlParagraphs([chargeSentence, ``, depositSentence(booking), ``,
+      htmlParagraphs([chargeSentence, ``, depositSentence(booking), ``, cancellation, ``,
         `You will receive a final confirmation as soon as your payment has been received.`]) +
       `<p style="margin:0 0 12px;"><a href="${escapeHtml(termsUrl)}" style="color:#26362a;">Rental terms and cancellation policy</a></p>` +
       manageBookingLink(booking).html +
@@ -379,7 +403,7 @@ export function buildApprovalEmail(booking: Booking, now: string = today()): Gue
 }
 
 /** E-post 2: kortet er sikret og bookingen bekreftet. Ren funksjon, testbar uten nettverk. */
-export function buildConfirmationEmail(booking: Booking): GuestEmail {
+export function buildConfirmationEmail(booking: Booking, now: string = today()): GuestEmail {
   const total = formatAmount(booking.pricing.total);
   const chargeDate = formatDate(booking.mainCharge.chargeAt ?? addDays(booking.checkIn, -CHARGE_DAYS_BEFORE_CHECKIN));
   const chargeSentence =
@@ -396,7 +420,9 @@ export function buildConfirmationEmail(booking: Booking): GuestEmail {
     ``,
     `Your booking at ${PROPERTY_NAME} is now confirmed. We look forward to welcoming you!`,
   ];
+  const paid = rentalPaid(booking);
   const payment = [chargeSentence, ``, depositSentence(booking)];
+  if (paid > 0) payment.push(``, cancellationSentence(booking, paid, "your payment of", now));
   const rows: [string, string][] = [...stayLines(booking), ["Total", total]];
 
   const text = [

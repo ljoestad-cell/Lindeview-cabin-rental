@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EARLY_CANCELLATION_FEE } from "@/lib/config";
+import { earlyCancellationRefund } from "@/lib/cancellation";
 import { DEFAULT_DEPOSIT, DEFAULT_GUEST_EMAILS, DEFAULT_MAIN_CHARGE, DEFAULT_PREPAYMENT, type Booking } from "@/lib/types";
 
 /**
@@ -181,14 +181,15 @@ describe("avbestilling", () => {
       mainCharge: { ...DEFAULT_MAIN_CHARGE, status: "card_saved", amount: REST, chargeAt: "2027-06-11" },
     });
 
-  it("gjesten avbestiller i tide: forskuddet refunderes minus gebyret", async () => {
+  it("gjesten avbestiller i tide: 96 % av forskuddet refunderes", async () => {
     prepaid();
     await setStatus("b1", "declined", { refundMode: "policy" });
 
     expect(payments.refundPayment).toHaveBeenCalledTimes(1);
     expect(payments.refundPayment.mock.calls[0][0]).toBe("pi_pre");
-    expect(payments.refundPayment.mock.calls[0][1]).toBe(PREPAY - EARLY_CANCELLATION_FEE);
-    expect(db.get("b1")!.mainCharge.refundedAmount).toBe(PREPAY - EARLY_CANCELLATION_FEE);
+    expect(payments.refundPayment.mock.calls[0][1]).toBe(612);
+    expect(earlyCancellationRefund(PREPAY)).toBe(612);
+    expect(db.get("b1")!.mainCharge.refundedAmount).toBe(612);
   });
 
   it("gjesten avbestiller for sent: ingenting refunderes, men det er vurdert", async () => {

@@ -57,8 +57,12 @@ automatisk i vilkårene:
 
 | Når gjesten avbestiller | Refusjon |
 |---|---|
-| Minst 30 dager før innsjekk | Det som er betalt, minus 50 € i gebyr (trekkes fra forskuddet, `EARLY_CANCELLATION_FEE`) |
+| Minst 30 dager før innsjekk | 96 % av det som er betalt (normalt bare forskuddet). 4 % holdes tilbake som gebyr (`CANCELLATION_FEE_SHARE`), og dekker Stripe-gebyret, som også er prosentbasert |
 | Mindre enn 30 dager før | Ingenting |
+
+Gebyret gjelder ikke bookinger fra før forskudd ble innført (de godtok gratis
+avbestilling). Beløpet gjesten får tilbake står i godkjennings- og
+bekreftelses-e-posten, på Stripe-betalingssiden og på «Min booking».
 
 For en booking der noe er betalt (også bare forskuddet) har admin to knapper. **«Gjesten avbestiller»**
 refunderer etter tabellen over, og beløpet står på knappen. **«Vi avlyser»**

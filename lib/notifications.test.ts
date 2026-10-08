@@ -61,9 +61,18 @@ describe("buildApprovalEmail", () => {
     expect(html).toContain('href="https://checkout.stripe.com/c/pay/test_123"');
   });
 
+  it("oppgir avbestillingsfrist og hva gjesten får tilbake av forskuddet (96 %)", () => {
+    const { text, html } = buildApprovalEmail(makeBooking(), "2027-01-15");
+    expect(text).toContain("cancel until Thu, 10 June 2027 (30 days before check-in)");
+    expect(text).toContain("96% of what you have paid refunded – €612.00 of your prepayment of €637.50");
+    expect(text).toContain("4% cancellation fee of €25.50 is retained");
+    expect(html).toContain("€612.00");
+  });
+
   it("sier at hele beløpet betales straks ved sen booking", () => {
     const { text } = buildApprovalEmail(makeBooking(), "2027-07-01");
     expect(text).toContain("the total of €2,550.00 is paid when you secure your booking");
+    expect(text).toContain("the booking is non-refundable");
     expect(text).not.toContain("prepayment");
   });
 
@@ -91,6 +100,14 @@ describe("buildConfirmationEmail", () => {
     const { text } = buildConfirmationEmail(booking);
     expect(text).toContain("received your prepayment of €637.50");
     expect(text).toContain("remaining €1,912.50 will be charged automatically to the same card on Fri, 11 June 2027");
+  });
+
+  it("bekreftelsen oppgir hva gjesten får tilbake ved avbestilling i tide", () => {
+    const booking = makeBooking({
+      prepayment: { status: "paid", amount: 637.5, paymentIntentId: "pi_pre", paidAt: null },
+      mainCharge: { status: "card_saved", amount: 1912.5, chargeAt: "2027-06-11" } as Booking["mainCharge"],
+    });
+    expect(buildConfirmationEmail(booking, "2027-01-15").text).toContain("€612.00 of your payment of €637.50");
   });
 
   it("bekrefter mottatt betaling når beløpet allerede er trukket", () => {
