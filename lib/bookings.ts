@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getAccount, recordAirbnbSync } from "@/lib/admin-account";
+import { getAccount, getBookingNotifyEmails, recordAirbnbSync } from "@/lib/admin-account";
 import * as calendar from "@/lib/calendar";
 import {
   BEDDING_MAX,
@@ -201,7 +201,7 @@ export async function requestBooking(input: BookingRequestInput): Promise<Bookin
   }
 
   try {
-    await notifyOwnerOfBooking(booking);
+    await notifyOwnerOfBooking(booking, await getBookingNotifyEmails());
   } catch (err) {
     console.error("[bookings] Kunne ikke sende e-postvarsel:", err);
   }

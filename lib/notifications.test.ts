@@ -216,14 +216,13 @@ describe("varsel om ny bookingforespørsel", () => {
     vi.unstubAllGlobals();
   });
 
-  it("går til eieren og hver ekstra mottaker i egne e-poster, med svar til gjesten", async () => {
+  it("går til hver mottaker i egne e-poster, med svar til gjesten", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "Lindeview <booking@lindeview.no>");
-    vi.stubEnv("BOOKING_REQUEST_EXTRA_EMAILS", " a@example.com , ugyldig, b@example.com");
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await notifyOwnerOfBooking(makeBooking());
+    await notifyOwnerOfBooking(makeBooking(), [OWNER_EMAIL, "a@example.com", "b@example.com"]);
 
     const bodies = fetchMock.mock.calls.map((c) => JSON.parse(c[1].body));
     expect(bodies.map((b) => b.to)).toEqual([OWNER_EMAIL, "a@example.com", "b@example.com"]);
@@ -233,29 +232,36 @@ describe("varsel om ny bookingforespørsel", () => {
   it("varsler bare eieren uten verifisert avsender (sandkassen når ikke andre)", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "");
-    vi.stubEnv("BOOKING_REQUEST_EXTRA_EMAILS", "a@example.com");
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await notifyOwnerOfBooking(makeBooking());
+    await notifyOwnerOfBooking(makeBooking(), ["a@example.com", OWNER_EMAIL]);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).to).toBe(OWNER_EMAIL);
   });
 
-  it("eierens varsel er sendt selv om en ekstra mottaker feiler", async () => {
+  it("én mottaker som feiler stopper ikke de andre", async () => {
     vi.stubEnv("RESEND_API_KEY", "re_test");
     vi.stubEnv("RESEND_FROM_EMAIL", "Lindeview <booking@lindeview.no>");
-    vi.stubEnv("BOOKING_REQUEST_EXTRA_EMAILS", "a@example.com");
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
-      .mockResolvedValueOnce(new Response("nope", { status: 403 }));
+      .mockResolvedValueOnce(new Response("nope", { status: 403 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await expect(notifyOwnerOfBooking(makeBooking())).resolves.toBeUndefined();
+    await expect(notifyOwnerOfBooking(makeBooking(), ["a@example.com", OWNER_EMAIL])).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("sender ingenting når alle mottakere er skrudd av", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await notifyOwnerOfBooking(makeBooking(), []);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

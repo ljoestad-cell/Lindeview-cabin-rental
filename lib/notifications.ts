@@ -102,19 +102,10 @@ async function sendGuestEmail(booking: Booking, email: GuestEmail): Promise<bool
 }
 
 /**
- * Ekstra mottakere av varsel om nye bookingforespørsler (bare det varselet),
- * kommaseparert i BOOKING_REQUEST_EXTRA_EMAILS. Ligger i miljøet, ikke i
- * koden, fordi repoet er offentlig.
+ * Varsel om ny bookingforespørsel til mottakerne eieren har skrudd på i «Min
+ * konto» (se getBookingNotifyEmails). Best-effort – feil logges per mottaker.
  */
-export function bookingRequestExtraRecipients(): string[] {
-  return (process.env.BOOKING_REQUEST_EXTRA_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim())
-    .filter((e) => e.includes("@"));
-}
-
-/** Best-effort – kaster videre ved feil, kalleren fanger og logger. */
-export async function notifyOwnerOfBooking(booking: Booking): Promise<void> {
+export async function notifyOwnerOfBooking(booking: Booking, recipients: string[]): Promise<void> {
   const text = [
     `Du har fått en ny bookingforespørsel på ${PROPERTY_NAME}.`,
     `${booking.name}, ${booking.checkIn} – ${booking.checkOut} (${booking.nights} netter).`,
@@ -123,13 +114,18 @@ export async function notifyOwnerOfBooking(booking: Booking): Promise<void> {
   ].join("\n");
 
   const subject = `Ny bookingforespørsel: ${booking.checkIn} – ${booking.checkOut}`;
-  await sendOwnerEmail(subject, text, booking.email);
-
-  // Egen e-post per ekstra mottaker, så en feil der aldri stopper eierens varsel.
-  // Krever verifisert avsender – sandkassen (onboarding@resend.dev) når bare kontoens egen adresse.
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey || !process.env.RESEND_FROM_EMAIL) return;
-  for (const to of bookingRequestExtraRecipients()) {
+  if (!apiKey) {
+    warnNotConfigured();
+    return;
+  }
+
+  // Egen e-post per mottaker, så en feil hos én aldri stopper de andre. Andre enn
+  // eieren krever verifisert avsender – sandkassen (onboarding@resend.dev) når bare
+  // kontoens egen adresse.
+  const verifiedSender = Boolean(process.env.RESEND_FROM_EMAIL);
+  for (const to of recipients) {
+    if (!verifiedSender && to.toLowerCase() !== OWNER_EMAIL.toLowerCase()) continue;
     try {
       await sendEmail(apiKey, { to, subject, text, replyTo: booking.email });
     } catch (err) {

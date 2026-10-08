@@ -191,6 +191,9 @@ export type BlockedRange = {
   source?: "manual" | "airbnb";
 };
 
+/** En mottaker av varsel om nye bookingforespørsler – kan skrus av uten å fjernes. */
+export type NotifyRecipient = { email: string; enabled: boolean };
+
 /** Eierens admin-konto. Én konto – ingen flerbrukerstøtte. */
 export type AdminAccount = {
   name: string;
@@ -215,6 +218,11 @@ export type AdminAccount = {
   airbnbSyncEnabled: boolean;
   /** Tidspunkt for siste vellykkede synk mot airbnbIcalUrl, vist i admin-UI som en enkel helsesjekk. */
   airbnbIcalSyncedAt: string | null;
+  /**
+   * Hvem som får e-post om nye bookingforespørsler («Min konto»). null til
+   * eieren har endret noe – da gjelder eieren + BOOKING_REQUEST_EXTRA_EMAILS.
+   */
+  bookingNotifyRecipients: NotifyRecipient[] | null;
   updatedAt: string;
 };
 

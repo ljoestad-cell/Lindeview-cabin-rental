@@ -237,11 +237,15 @@ sende e-post:
 4. (Valgfritt, krever verifisert domene) `RESEND_FROM_EMAIL` for å sende fra
    f.eks. `Lindeview <booking@lindeview.no>` i stedet for standard
    `onboarding@resend.dev`.
-5. (Valgfritt, krever `RESEND_FROM_EMAIL`) `BOOKING_REQUEST_EXTRA_EMAILS`:
-   flere adresser, kommaseparert, som også skal varsles om **nye
-   bookingforespørsler** – bare det, ikke betalingsfeil, avbestillinger o.l.
-   Hver får sin egen e-post. Ligger i miljøvariabler og ikke i koden fordi
-   repoet er offentlig.
+5. **Hvem som varsles om nye bookingforespørsler** styres i `/admin` →
+   «Min konto» → **«Brukere som får varsling»**: legg til adresser, skru
+   varselet av/på per adresse med bryteren, eller fjern dem. Bare det
+   varselet, ikke betalingsfeil, avbestillinger o.l., som går til eieren. Hver
+   mottaker får sin egen e-post. Andre enn eieren krever `RESEND_FROM_EMAIL`.
+   Listen lagres i databasen, ikke i koden, fordi repoet er offentlig. Før
+   listen er endret første gang, inneholder den eieren og adressene i den
+   gamle miljøvariabelen `BOOKING_REQUEST_EXTRA_EMAILS` (kommaseparert); den
+   kan fjernes etterpå.
 
 **Til gjesten (på engelsk):**
 

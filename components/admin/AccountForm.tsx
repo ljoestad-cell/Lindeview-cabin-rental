@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import type { PublicAdminAccount } from "@/lib/admin-account";
+import type { NotifyRecipient } from "@/lib/types";
 
 const INPUT_CLASS =
   "w-full rounded-xl border border-line bg-background px-4 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-accent";
@@ -10,6 +11,7 @@ export default function AccountForm({ initialAccount }: { initialAccount: Public
   return (
     <div className="space-y-10">
       <ProfileSection initialAccount={initialAccount} />
+      <NotifyRecipientsSection initialRecipients={initialAccount.bookingNotifyRecipients} />
       <PasswordSection />
       <MfaSection
         initialEnabled={initialAccount.mfaEnabled}
@@ -91,6 +93,169 @@ function ProfileSection({ initialAccount }: { initialAccount: PublicAdminAccount
         </button>
       </form>
     </section>
+  );
+}
+
+/**
+ * Hvem som får e-post om nye bookingforespørsler. Hver mottaker har en
+ * av/på-bryter, så en adresse kan pauses uten å fjernes.
+ */
+function NotifyRecipientsSection({ initialRecipients }: { initialRecipients: NotifyRecipient[] }) {
+  const [recipients, setRecipients] = useState(initialRecipients);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+
+  async function call(method: "POST" | "PATCH" | "DELETE", body: object, key: string): Promise<boolean> {
+    setBusy(key);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/account/notify-recipients", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Kunne ikke lagre.");
+        return false;
+      }
+      setRecipients((data.account as PublicAdminAccount).bookingNotifyRecipients);
+      return true;
+    } catch {
+      setError("Kunne ikke kontakte serveren.");
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (await call("POST", { email: newEmail }, "add")) {
+      setNewEmail("");
+      setAdding(false);
+    }
+  }
+
+  function remove(email: string) {
+    if (!confirm(`Fjerne ${email} fra varslingslisten?`)) return;
+    void call("DELETE", { email }, email);
+  }
+
+  return (
+    <section className="rounded-2xl bg-surface p-6 ring-1 ring-line">
+      <h2 className="font-display text-lg text-brand">Brukere som får varsling</h2>
+      <p className="mt-1 text-sm text-muted">
+        Disse får e-post når noen sender en ny bookingforespørsel. Skru av en adresse for å pause varselet uten å
+        fjerne den.
+      </p>
+
+      {recipients.length === 0 ? (
+        <p className="mt-4 text-sm text-muted">Ingen mottakere – ingen får varsel om nye bookinger.</p>
+      ) : (
+        <ul className="mt-4 divide-y divide-line rounded-xl ring-1 ring-line">
+          {recipients.map((r) => (
+            <li key={r.email} className="flex items-center gap-3 px-4 py-3">
+              <span className={`min-w-0 flex-1 truncate text-sm ${r.enabled ? "text-foreground" : "text-muted"}`}>
+                {r.email}
+              </span>
+              <button
+                type="button"
+                onClick={() => remove(r.email)}
+                disabled={busy !== null}
+                className="shrink-0 text-xs font-medium text-muted underline hover:text-red-700 disabled:opacity-50"
+              >
+                Fjern
+              </button>
+              <Switch
+                checked={r.enabled}
+                disabled={busy !== null}
+                label={`Varsling for ${r.email}`}
+                onChange={(enabled) => void call("PATCH", { email: r.email, enabled }, r.email)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+
+      {adding ? (
+        <form onSubmit={add} className="mt-4 flex flex-wrap items-center gap-2">
+          <input
+            type="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            placeholder="navn@eksempel.no"
+            aria-label="E-postadresse"
+            required
+            autoFocus
+            className={`min-w-[14rem] flex-1 ${INPUT_CLASS}`}
+          />
+          <button
+            type="submit"
+            disabled={busy !== null}
+            className="rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-dark disabled:opacity-50"
+          >
+            {busy === "add" ? "Legger til..." : "Legg til"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAdding(false);
+              setNewEmail("");
+              setError(null);
+            }}
+            className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand/5"
+          >
+            Avbryt
+          </button>
+        </form>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="mt-4 rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand/5"
+        >
+          + Legg til bruker
+        </button>
+      )}
+    </section>
+  );
+}
+
+/** Av/på-bryter. */
+function Switch({
+  checked,
+  disabled,
+  label,
+  onChange,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  label: string;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+        checked ? "bg-emerald-600" : "bg-muted/30"
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+          checked ? "translate-x-5" : "translate-x-0.5"
+        }`}
+      />
+    </button>
   );
 }
 

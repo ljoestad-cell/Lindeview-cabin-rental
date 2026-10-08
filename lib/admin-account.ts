@@ -10,7 +10,7 @@ import {
   otpauthUri,
   verifyTotp,
 } from "@/lib/totp";
-import type { AdminAccount } from "@/lib/types";
+import type { AdminAccount, NotifyRecipient } from "@/lib/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -28,8 +28,28 @@ function defaultAccount(): AdminAccount {
     airbnbIcalUrl: null,
     airbnbSyncEnabled: true,
     airbnbIcalSyncedAt: null,
+    bookingNotifyRecipients: null,
     updatedAt: new Date().toISOString(),
   };
+}
+
+/** Maks antall mottakere av varsel om nye bookinger. */
+export const MAX_NOTIFY_RECIPIENTS = 10;
+
+/**
+ * Mottakerne før eieren har endret noe i «Min konto»: eieren selv, pluss
+ * adressene i BOOKING_REQUEST_EXTRA_EMAILS (slik det var før listen fantes).
+ * Ligger i miljøet, ikke i koden, fordi repoet er offentlig.
+ */
+function defaultNotifyRecipients(): NotifyRecipient[] {
+  const extra = (process.env.BOOKING_REQUEST_EXTRA_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter((e) => EMAIL_RE.test(e));
+  const emails = [OWNER_EMAIL, ...extra].filter(
+    (e, i, all) => all.findIndex((x) => x.toLowerCase() === e.toLowerCase()) === i,
+  );
+  return emails.map((email) => ({ email, enabled: true }));
 }
 
 /**
@@ -48,6 +68,7 @@ async function loadAccount(): Promise<AdminAccount> {
     airbnbIcalUrl: base.airbnbIcalUrl ?? null,
     airbnbSyncEnabled: base.airbnbSyncEnabled ?? true,
     airbnbIcalSyncedAt: base.airbnbIcalSyncedAt ?? null,
+    bookingNotifyRecipients: base.bookingNotifyRecipients ?? defaultNotifyRecipients(),
     mfaEnabled: base.mfaEnabled ?? false,
     mfaSecret: base.mfaSecret ?? null,
     mfaPendingSecret: base.mfaPendingSecret ?? null,
@@ -63,8 +84,9 @@ async function loadAccount(): Promise<AdminAccount> {
 /** Eierens konto uten passordhash og MFA-hemmeligheter – trygt å sende til klienten. */
 export type PublicAdminAccount = Omit<
   AdminAccount,
-  "passwordHash" | "mfaSecret" | "mfaPendingSecret" | "mfaRecoveryCodes" | "mfaLastUsedStep"
+  "passwordHash" | "mfaSecret" | "mfaPendingSecret" | "mfaRecoveryCodes" | "mfaLastUsedStep" | "bookingNotifyRecipients"
 > & {
+  bookingNotifyRecipients: NotifyRecipient[];
   /** Antall ubrukte reservekoder – selve kodene vises bare én gang, ved oppsett. */
   mfaRecoveryCodesLeft: number;
 };
@@ -79,6 +101,7 @@ function toPublic(account: AdminAccount): PublicAdminAccount {
     airbnbIcalUrl,
     airbnbSyncEnabled,
     airbnbIcalSyncedAt,
+    bookingNotifyRecipients,
     updatedAt,
   } = account;
   return {
@@ -90,6 +113,7 @@ function toPublic(account: AdminAccount): PublicAdminAccount {
     airbnbIcalUrl,
     airbnbSyncEnabled,
     airbnbIcalSyncedAt,
+    bookingNotifyRecipients: bookingNotifyRecipients ?? [],
     updatedAt,
   };
 }
@@ -162,6 +186,54 @@ export async function updateAirbnbSyncEnabled(enabled: boolean): Promise<PublicA
   const updated: AdminAccount = { ...existing, airbnbSyncEnabled: enabled, updatedAt: new Date().toISOString() };
   await getStore().setAdminAccount(updated);
   return toPublic(updated);
+}
+
+// --- Varsel om nye bookinger ---------------------------------------------
+
+/** Adressene som skal ha e-post om en ny bookingforespørsel (de som er skrudd på). */
+export async function getBookingNotifyEmails(): Promise<string[]> {
+  const account = await loadAccount();
+  return (account.bookingNotifyRecipients ?? []).filter((r) => r.enabled).map((r) => r.email);
+}
+
+async function saveNotifyRecipients(
+  update: (recipients: NotifyRecipient[]) => NotifyRecipient[],
+): Promise<PublicAdminAccount> {
+  const existing = await loadAccount();
+  const updated: AdminAccount = {
+    ...existing,
+    bookingNotifyRecipients: update(existing.bookingNotifyRecipients ?? []),
+    updatedAt: new Date().toISOString(),
+  };
+  await getStore().setAdminAccount(updated);
+  return toPublic(updated);
+}
+
+function sameEmail(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+/** Legger til en mottaker (skrudd på). Kaster ved ugyldig adresse, duplikat eller for mange. */
+export async function addNotifyRecipient(email: string): Promise<PublicAdminAccount> {
+  const trimmed = email.trim();
+  if (!EMAIL_RE.test(trimmed)) throw new AccountValidationError("Ugyldig e-postadresse.");
+  const existing = (await loadAccount()).bookingNotifyRecipients ?? [];
+  if (existing.some((r) => sameEmail(r.email, trimmed))) {
+    throw new AccountValidationError("Adressen står allerede i listen.");
+  }
+  if (existing.length >= MAX_NOTIFY_RECIPIENTS) {
+    throw new AccountValidationError(`Maks ${MAX_NOTIFY_RECIPIENTS} mottakere.`);
+  }
+  return saveNotifyRecipients((list) => [...list, { email: trimmed, enabled: true }]);
+}
+
+/** Skrur varsel av/på for én mottaker uten å fjerne den. */
+export async function setNotifyRecipientEnabled(email: string, enabled: boolean): Promise<PublicAdminAccount> {
+  return saveNotifyRecipients((list) => list.map((r) => (sameEmail(r.email, email) ? { ...r, enabled } : r)));
+}
+
+export async function removeNotifyRecipient(email: string): Promise<PublicAdminAccount> {
+  return saveNotifyRecipients((list) => list.filter((r) => !sameEmail(r.email, email)));
 }
 
 /** Kalt av kalendersynken (lib/bookings.ts) etter hvert forsøk, som en enkel helsesjekk i admin-UI. */
