@@ -181,15 +181,15 @@ describe("avbestilling", () => {
       mainCharge: { ...DEFAULT_MAIN_CHARGE, status: "card_saved", amount: REST, chargeAt: "2027-06-11" },
     });
 
-  it("gjesten avbestiller i tide: 96 % av forskuddet refunderes", async () => {
+  it("gjesten avbestiller i tide: forskuddet minus 2 % av leien refunderes", async () => {
     prepaid();
     await setStatus("b1", "declined", { refundMode: "policy" });
 
     expect(payments.refundPayment).toHaveBeenCalledTimes(1);
     expect(payments.refundPayment.mock.calls[0][0]).toBe("pi_pre");
-    expect(payments.refundPayment.mock.calls[0][1]).toBe(612);
-    expect(earlyCancellationRefund(PREPAY)).toBe(612);
-    expect(db.get("b1")!.mainCharge.refundedAmount).toBe(612);
+    expect(payments.refundPayment.mock.calls[0][1]).toBe(586.5);
+    expect(earlyCancellationRefund(PREPAY, TOTAL)).toBe(586.5);
+    expect(db.get("b1")!.mainCharge.refundedAmount).toBe(586.5);
   });
 
   it("gjesten avbestiller for sent: ingenting refunderes, men det er vurdert", async () => {

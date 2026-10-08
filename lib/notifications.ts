@@ -257,19 +257,20 @@ function depositSentence(booking: Booking): string {
 
 /**
  * Avbestillingsvilkårene med utregnede beløp for det gjesten har betalt (eller
- * betaler nå): innen fristen refunderes alt minus CANCELLATION_FEE_SHARE –
- * samme tall som refusjonen i lib/cancellation.ts.
+ * betaler nå): innen fristen refunderes det betalte minus CANCELLATION_FEE_SHARE
+ * av hele leien – samme tall som refusjonen i lib/cancellation.ts.
  */
 function cancellationSentence(booking: Booking, paid: number, paidLabel: string, now: string): string {
   const deadline = addDays(booking.checkIn, -FULL_REFUND_DAYS);
   if (deadline < now) {
     return `Cancellation: since check-in is less than ${FULL_REFUND_DAYS} days away, the booking is non-refundable.`;
   }
+  const total = booking.pricing.total;
   const feePct = Math.round(CANCELLATION_FEE_SHARE * 100);
   return (
     `Cancellation: you can cancel until ${formatDate(deadline)} (${FULL_REFUND_DAYS} days before check-in) and get ` +
-    `${100 - feePct}% of what you have paid refunded – ${formatAmount(earlyCancellationRefund(paid))} of ${paidLabel} ` +
-    `${formatAmount(paid)} (a ${feePct}% cancellation fee of ${formatAmount(cancellationFee(paid))} is retained). ` +
+    `${formatAmount(earlyCancellationRefund(paid, total))} of ${paidLabel} ${formatAmount(paid)} refunded ` +
+    `(a cancellation fee of ${feePct}% of the total price, ${formatAmount(cancellationFee(total))}, is retained). ` +
     `Cancellations after that are non-refundable.`
   );
 }

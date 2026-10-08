@@ -48,12 +48,14 @@ export const CHARGE_DAYS_BEFORE_CHECKIN = 29;
 export const PREPAYMENT_SHARE = 0.25;
 
 /**
- * Andelen av det gjesten har betalt som holdes tilbake når de avbestiller
- * innen fristen (FULL_REFUND_DAYS) – dekker blant annet Stripe-gebyret, som
- * også er prosentbasert. Gjesten får resten (96 %) tilbake. Eieren som
- * avlyser refunderer alltid alt. Se cancellationFee i lib/cancellation.ts.
+ * Avbestillingsgebyr som andel av hele leien (pricing.total), holdt tilbake
+ * når gjesten avbestiller innen fristen (FULL_REFUND_DAYS). Dekker
+ * Stripe-gebyret på forskuddet med god margin. Gjesten får resten av det
+ * som er betalt tilbake. Eieren som avlyser refunderer alltid alt. Må være
+ * mindre enn PREPAYMENT_SHARE, så gebyret alltid kan trekkes fra forskuddet.
+ * Se cancellationFee i lib/cancellation.ts.
  */
-export const CANCELLATION_FEE_SHARE = 0.04;
+export const CANCELLATION_FEE_SHARE = 0.02;
 
 /** Kalenderen er åpen fra og med denne datoen (innsjekk). */
 export const SEASON_START = "2027-05-01";
@@ -79,7 +81,7 @@ export const BEDDING_MAX = 10;
 /**
  * Avbestilling fra gjesten (se lib/cancellation.ts og /vilkar):
  * - minst FULL_REFUND_DAYS dager før innsjekk: det som er betalt refunderes
- *   minus CANCELLATION_FEE_SHARE (normalt bare forskuddet – resten er ikke trukket ennå)
+ *   minus CANCELLATION_FEE_SHARE av hele leien (normalt er bare forskuddet betalt)
  * - senere: ingen refusjon
  * Resten trekkes dagen etter at fristen er ute (CHARGE_DAYS_BEFORE_CHECKIN).
  */

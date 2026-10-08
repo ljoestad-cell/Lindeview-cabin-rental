@@ -85,10 +85,9 @@ export default function TermsPage() {
         <p>Avbestill ved å kontakte oss på e-post eller telefon. Refusjonen avhenger av når vi får beskjed:</p>
         <ul>
           <li>
-            <strong>Minst {FULL_REFUND_DAYS} dager før innsjekk:</strong> du får tilbake{" "}
-            {Math.round((1 - CANCELLATION_FEE_SHARE) * 100)} % av det du har betalt. Vi holder tilbake et
-            avbestillingsgebyr på {Math.round(CANCELLATION_FEE_SHARE * 100)} %. Normalt er bare forskuddet betalt da –
-            resten trekkes ikke.
+            <strong>Minst {FULL_REFUND_DAYS} dager før innsjekk:</strong> du får tilbake det du har betalt, minus et
+            avbestillingsgebyr på {Math.round(CANCELLATION_FEE_SHARE * 100)} % av totalbeløpet for leien. Gebyret
+            trekkes fra forskuddet. Resten av leien trekkes ikke.
           </li>
           <li>
             <strong>Mindre enn {FULL_REFUND_DAYS} dager før innsjekk:</strong> ingen refusjon av leien.
@@ -99,7 +98,8 @@ export default function TermsPage() {
 
       <LegalSection title="7. Avlysning fra oss">
         <p>
-          Må vi avlyse oppholdet, for eksempel på grunn av skade på hytta eller andre forhold vi ikke rår over, får du
+          Må vi avlyse oppholdet, for eksempel på grunn av skade på hytta, teknisk feil i bookingsystemet eller andre
+          forhold vi ikke rår over, får du
           hele det innbetalte beløpet tilbake.
         </p>
       </LegalSection>

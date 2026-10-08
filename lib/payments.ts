@@ -118,8 +118,9 @@ export function prepaymentCheckoutMessage(booking: Booking, amount: number): str
   const deadline = checkoutDate.format(fromIso(addDays(booking.checkIn, -FULL_REFUND_DAYS)));
   return (
     `The remaining ${checkoutAmount.format(rest)} is charged automatically to this card on ${chargeAt}. ` +
-    `Cancel by ${deadline} and get ${100 - feePct}% (${checkoutAmount.format(earlyCancellationRefund(amount))}) ` +
-    `of this payment refunded. After that, the booking is non-refundable.`
+    `Cancel by ${deadline} and get ${checkoutAmount.format(earlyCancellationRefund(amount, booking.pricing.total))} ` +
+    `of this payment refunded (a cancellation fee of ${feePct}% of the total price is retained). ` +
+    `After that, the booking is non-refundable.`
   );
 }
 

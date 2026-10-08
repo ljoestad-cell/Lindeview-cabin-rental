@@ -7,7 +7,7 @@ import Footer from "@/components/Footer";
 import GuestBookingActions from "@/components/booking/GuestBookingActions";
 import { PriceBreakdown } from "@/components/booking/PriceSummary";
 import { getBookingByGuestToken } from "@/lib/bookings";
-import { earlyCancellationRefund } from "@/lib/cancellation";
+import { policyRefundTotal } from "@/lib/cancellation";
 import { CANCELLATION_FEE_SHARE, CHARGE_DAYS_BEFORE_CHECKIN, DEPOSIT_HOLD_DAYS } from "@/lib/config";
 import { formatDateLong, today } from "@/lib/dates";
 import {
@@ -95,9 +95,10 @@ export default async function GuestBookingPage(props: PageProps<"/booking/[token
                 ) : now <= deadline ? (
                   <p>
                     Avbestiller du til og med <span className="font-medium text-foreground">{formatDateLong(deadline)}</span>,
-                    får du tilbake {Math.round((1 - CANCELLATION_FEE_SHARE) * 100)} % av det du har betalt
+                    får du tilbake det du har betalt, minus et gebyr på {Math.round(CANCELLATION_FEE_SHARE * 100)} % av
+                    totalbeløpet
                     {rentalPaid(booking) > 0 &&
-                      ` (${formatEur(earlyCancellationRefund(rentalPaid(booking)))} av ${formatEur(rentalPaid(booking))})`}
+                      ` (${formatEur(policyRefundTotal(booking, now))} av ${formatEur(rentalPaid(booking))})`}
                     . Etter det refunderes ikke leien.
                   </p>
                 ) : (

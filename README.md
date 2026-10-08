@@ -57,7 +57,7 @@ automatisk i vilkårene:
 
 | Når gjesten avbestiller | Refusjon |
 |---|---|
-| Minst 30 dager før innsjekk | 96 % av det som er betalt (normalt bare forskuddet). 4 % holdes tilbake som gebyr (`CANCELLATION_FEE_SHARE`), og dekker Stripe-gebyret, som også er prosentbasert |
+| Minst 30 dager før innsjekk | Det som er betalt (normalt bare forskuddet), minus et gebyr på 2 % av hele leien (`CANCELLATION_FEE_SHARE`), som trekkes fra forskuddet. Gebyret dekker Stripe-gebyret på forskuddet med god margin |
 | Mindre enn 30 dager før | Ingenting |
 
 Gebyret gjelder ikke bookinger fra før forskudd ble innført (de godtok gratis

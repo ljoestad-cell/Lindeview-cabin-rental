@@ -10,7 +10,7 @@ export default function StayFacts({ prices }: { prices: Prices }) {
     { label: "Kajakk – 2 stk.", value: "Inkludert" },
     {
       label: "Avbestilling",
-      value: `Frem til ${FULL_REFUND_DAYS} dager før innsjekk, med fratrekk av ${Math.round(CANCELLATION_FEE_SHARE * 100)} % av beløpet`,
+      value: `Frem til ${FULL_REFUND_DAYS} dager før innsjekk, med fratrekk av ${Math.round(CANCELLATION_FEE_SHARE * 100)} % av totalbeløpet`,
     },
     { label: "Sesong", value: SEASON_LABEL },
   ];
