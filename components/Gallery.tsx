@@ -11,6 +11,11 @@ const photos = [
     className: "sm:col-span-2 sm:row-span-2",
   },
   {
+    src: "/images/galleri/stua_ut.jpeg",
+    alt: "Stue med sofaer og store vinduer mot utsikten i solnedgang",
+    className: "col-span-2 sm:row-span-2",
+  },
+  {
     src: "/images/galleri/living-room-view.jpeg",
     alt: "Stue med panoramavindu mot solnedgang",
     className: "",
@@ -28,6 +33,11 @@ const photos = [
   {
     src: "/images/galleri/cabin-northern-lights.jpeg",
     alt: "Lindeview en vinternatt under nordlys og stjernehimmel",
+    className: "sm:col-span-2",
+  },
+  {
+    src: "/images/galleri/stua_inn.jpeg",
+    alt: "Stue med sofagruppe, peisovn og åpen løsning mot kjøkkenet",
     className: "sm:col-span-2",
   },
   {
@@ -61,6 +71,11 @@ const photos = [
     className: "",
   },
   {
+    src: "/images/galleri/bad.jpeg",
+    alt: "Walk-in-dusj med skifervegger og glassvegg",
+    className: "sm:row-span-2",
+  },
+  {
     src: "/images/galleri/loft-living-room.jpeg",
     alt: "Loftsstue med sofa og TV",
     className: "sm:col-span-2 sm:row-span-2",
@@ -79,6 +94,16 @@ const photos = [
     src: "/images/galleri/valfjell.jpeg",
     alt: "Utsikt over dalen fra Valfjell i kveldssol",
     className: "sm:col-span-2",
+  },
+  {
+    src: "/images/galleri/stua_wide.jpeg",
+    alt: "Vidvinkel av stua med peisovn, sofaer og lenestoler",
+    className: "sm:col-span-2",
+  },
+  {
+    src: "/images/galleri/stua_host.jpeg",
+    alt: "Salongbord med høstpynt og telys i stua",
+    className: "sm:row-span-2",
   },
   {
     src: "/images/galleri/foss.jpeg",
@@ -143,7 +168,7 @@ export default function Gallery() {
           </div>
         </div>
 
-        <div className="mt-14 grid auto-rows-[220px] grid-cols-2 gap-4 sm:grid-flow-dense sm:grid-cols-4">
+        <div className="mt-14 grid auto-rows-[220px] grid-flow-dense grid-cols-2 gap-4 sm:grid-cols-4">
           {photos.map((photo, index) => (
             <button
               key={photo.src}
