@@ -58,8 +58,8 @@ export default function Amenities() {
             </div>
             <div className="relative mt-4 aspect-[16/10] w-full overflow-hidden rounded-2xl">
               <Image
-                src="/images/galleri/living-room-view.jpeg"
-                alt="Stue med panoramavindu og utsikt mot solnedgang over fjellet"
+                src="/images/galleri/stua_ut.jpeg"
+                alt="Stue med sofaer og store vinduer mot utsikten i solnedgang"
                 fill
                 className="object-cover"
                 sizes="(min-width: 1024px) 45vw, 100vw"

@@ -27,7 +27,7 @@ function lodgingJsonLd() {
     "@type": "VacationRental",
     name: PROPERTY_NAME,
     url,
-    image: [`${url}/images/galleri/cabin-front-wide.jpeg`, `${url}/images/galleri/living-room-view.jpeg`],
+    image: [`${url}/images/galleri/cabin-front-wide.jpeg`, `${url}/images/galleri/stua_ut.jpeg`],
     telephone: OWNER_PHONE_TEL,
     email: CONTACT_EMAIL,
     address: { "@type": "PostalAddress", addressLocality: LOCATION_LABEL, addressCountry: "NO" },

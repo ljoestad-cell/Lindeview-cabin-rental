@@ -13,12 +13,7 @@ const photos = [
   {
     src: "/images/galleri/stua_ut.jpeg",
     alt: "Stue med sofaer og store vinduer mot utsikten i solnedgang",
-    className: "col-span-2 sm:row-span-2",
-  },
-  {
-    src: "/images/galleri/living-room-view.jpeg",
-    alt: "Stue med panoramavindu mot solnedgang",
-    className: "",
+    className: "sm:col-span-2 sm:row-span-2",
   },
   {
     src: "/images/galleri/master-bedroom.jpeg",
@@ -128,7 +123,7 @@ const photos = [
   {
     src: "/images/galleri/bedroom-4.jpeg",
     alt: "Soverom 4 på hemsen",
-    className: "",
+    className: "sm:col-span-2",
   },
 ];
 
